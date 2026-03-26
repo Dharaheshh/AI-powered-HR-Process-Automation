@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAllApplicationsAPI } from '../services/api';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getAllApplicationsAPI, updateApplicationStatusAPI } from '../services/api';
+import toast from 'react-hot-toast';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -8,10 +10,17 @@ const DAYS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 
 const InterviewScheduling = () => {
   const { user } = useAuth();
-  const [currentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const schedulingState = location.state || null;
+  const initDate = schedulingState?.selectedSlot ? new Date(schedulingState.selectedSlot) : new Date();
+  
+  const [currentDate] = useState(initDate);
+  const [selectedDate, setSelectedDate] = useState(initDate);
   const [platform, setPlatform] = useState('google');
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [processing, setProcessing] = useState(false);
   
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +64,30 @@ const InterviewScheduling = () => {
   }));
 
   const shortlistedCandidates = applications.filter(a => a.status === 'shortlisted');
-  const targetCandidate = shortlistedCandidates.length > 0 ? shortlistedCandidates[0] : null;
+  const targetCandidateFallback = shortlistedCandidates.length > 0 ? shortlistedCandidates[0] : null;
+
+  const targetName = schedulingState?.candidateName || targetCandidateFallback?.candidate?.name;
+  const targetJob = schedulingState?.jobTitle || targetCandidateFallback?.jobOpening?.title;
+  const canSchedule = !!schedulingState?.applicationId || !!targetCandidateFallback?._id;
+  const activeAppId = schedulingState?.applicationId || targetCandidateFallback?._id;
+
+  const handleFinalize = async () => {
+    if (!activeAppId) return toast.error("No candidate selected");
+    const link = platform === 'google' ? 'https://meet.google.com/abc-def-ghi' : 'https://zoom.us/j/1234567890';
+    try {
+      setProcessing(true);
+      await updateApplicationStatusAPI(activeAppId, 'interview', {
+        interviewDate: selectedDate,
+        interviewLink: link
+      });
+      toast.success("Interview scheduled & invite sent!");
+      navigate(`/candidates/${activeAppId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Scheduling failed");
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -72,8 +104,8 @@ const InterviewScheduling = () => {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#1e293b', margin: 0, fontFamily: 'Manrope' }}>Candidate Planning</h1>
           <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
-            {targetCandidate ? (
-              <>Finalizing the Technical Round for <strong>{targetCandidate.candidate?.name}</strong> ({targetCandidate.jobOpening?.title})</>
+            {targetName ? (
+              <>Finalizing the Technical Round for <strong>{targetName}</strong> ({targetJob})</>
             ) : (
               "No shortlisted candidates currently awaiting interview scheduling."
             )}
@@ -81,9 +113,9 @@ const InterviewScheduling = () => {
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#ecfdf5', color: '#059669' }}>
-            {targetCandidate ? 'Available' : 'No Pending'}
+            {targetName ? 'Available' : 'No Pending'}
           </span>
-          {targetCandidate && <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#eff4ff', color: '#003fb1' }}>Stage 3 of 4</span>}
+          {targetName && <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#eff4ff', color: '#003fb1' }}>Stage 3 of 4</span>}
         </div>
       </div>
 
@@ -240,12 +272,18 @@ const InterviewScheduling = () => {
           <div style={{ background: 'linear-gradient(135deg, #003fb1, #1a56db)', borderRadius: '12px', padding: '20px', color: '#fff' }}>
             <h4 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 6px' }}>Finalize Schedule</h4>
             <p style={{ fontSize: '12px', opacity: 0.8, lineHeight: 1.5, margin: '0 0 14px' }}>
-              Confirming will send invites to the candidate and panel automatically.
+               Confirming will schedule {targetName}'s interview for <strong>{selectedDate.toLocaleString()}</strong> and send invites automatically.
             </p>
-            <button style={{
-              width: '100%', padding: '12px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
-              borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
-            }}>Send Invitations</button>
+            <button 
+              onClick={handleFinalize}
+              disabled={!canSchedule || processing}
+              style={{
+                width: '100%', padding: '12px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: '8px', color: '#fff', fontSize: '13px', fontWeight: 700, 
+                cursor: canSchedule && !processing ? 'pointer' : 'not-allowed', opacity: canSchedule ? 1 : 0.6
+            }}>
+              {processing ? 'Processing...' : 'Send Invitations'}
+            </button>
           </div>
         </div>
       </div>

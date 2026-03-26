@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { getApplicantsAPI, getJobOpeningAPI, updateApplicationStatusAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ import 'react-calendar/dist/Calendar.css';
 
 const Applicants = () => {
   const { jobId } = useParams();
+  const navigate = useNavigate();
   const [opening, setOpening] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -302,8 +303,14 @@ const Applicants = () => {
                         {(app.status === 'applied' || app.status === 'shortlisted') && (
                           <button 
                             onClick={() => {
-                              setSelectedAppId(app._id);
-                              setShowInterviewModal(true);
+                              navigate('/calendar', {
+                                state: {
+                                  candidateId: app.candidate?._id,
+                                  applicationId: app._id,
+                                  candidateName: app.candidate?.name,
+                                  jobTitle: opening?.title
+                                }
+                              });
                             }}
                             disabled={updatingId === app._id}
                             style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', fontSize: '0.75rem', cursor: 'pointer' }}

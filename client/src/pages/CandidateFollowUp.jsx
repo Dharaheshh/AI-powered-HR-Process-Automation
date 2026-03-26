@@ -40,6 +40,18 @@ const CandidateFollowUp = () => {
   ];
 
   const handleActionConfirm = async () => {
+    if (selectedAction === 'interview') {
+      navigate('/calendar', { 
+        state: { 
+          candidateId: candidate._id, 
+          applicationId: appData._id,
+          candidateName: candidate.name,
+          jobTitle: job.title
+        } 
+      });
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to update status to ${selectedAction}?`)) return;
     try {
       setProcessing(true);
@@ -213,7 +225,7 @@ const CandidateFollowUp = () => {
                     display: 'flex', alignItems: 'center', gap: '8px'
                   }}
                 >
-                  {processing ? 'Processing...' : `Confirm ${selectedAction.charAt(0).toUpperCase() + selectedAction.slice(1)}`}
+                  {processing ? 'Processing...' : (selectedAction === 'interview' ? 'Proceed to Calendar →' : `Confirm ${selectedAction.charAt(0).toUpperCase() + selectedAction.slice(1)}`)}
                 </button>
               </div>
             </div>

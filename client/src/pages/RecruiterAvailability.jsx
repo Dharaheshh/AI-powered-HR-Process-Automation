@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getAllApplicationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
@@ -6,6 +7,8 @@ const DAYS_OF_WEEK = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const HOURS = ['09:00AM','10:00AM','11:00AM','12:00PM','01:00PM','02:00PM','03:00PM','04:00PM','05:00PM'];
 
 const RecruiterAvailability = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('week');
   const today = new Date();
   const weekStart = new Date(today);
@@ -54,8 +57,8 @@ const RecruiterAvailability = () => {
         day: dayIndex,
         startH: startH,
         endH: startH + 1, 
-        title: e.data.candidate?.name?.split(' ')[0] || 'Interview',
-        color: '#dbeafe', textColor: '#003fb1'
+        title: `${e.data.candidate?.name?.split(' ')[0]} - Intv`,
+        color: '#ecfdf5', textColor: '#059669', border: '1px solid #a7f3d0'
       };
     });
 
@@ -66,6 +69,19 @@ const RecruiterAvailability = () => {
 
   return (
     <DashboardLayout>
+      {location.state?.candidateId && (
+        <div style={{ background: '#eff4ff', border: '1px solid #cce0ff', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="material-symbols-outlined" style={{ color: '#003fb1', fontSize: '24px' }}>event_available</span>
+            <div>
+              <p style={{ fontSize: '14px', fontWeight: 700, color: '#003fb1', margin: 0 }}>Schedule Interview for {location.state.candidateName}</p>
+              <p style={{ fontSize: '12px', color: '#1e293b', margin: '2px 0 0' }}>Click on any available time slot in the calendar below to proceed.</p>
+            </div>
+          </div>
+          <button onClick={() => navigate(-1)} style={{ padding: '8px 16px', background: '#fff', border: '1px solid #cce0ff', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: '#003fb1', cursor: 'pointer' }}>Cancel Scheduling</button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
         <span style={{ fontSize: '10px', fontWeight: 700, color: '#003fb1', textTransform: 'uppercase', letterSpacing: '1px' }}>Management</span>
       </div>
@@ -190,19 +206,41 @@ const RecruiterAvailability = () => {
             {HOURS.map((hour, hi) => (
               <div key={hi} style={{ display: 'contents' }}>
                 <div style={{ padding: '12px 6px', fontSize: '10px', color: '#94a3b8', textAlign: 'right', borderBottom: '1px solid #f8fafc' }}>{hour}</div>
-                {weekDays.map((_, di) => (
-                  <div key={di} style={{ height: '52px', borderLeft: '1px solid #f1f5f9', borderBottom: '1px solid #f8fafc', position: 'relative' }}>
-                    {events.filter(e => e.day === di && Math.floor(e.startH) >= 9 + hi && Math.floor(e.startH) < 10 + hi).map((e, ei) => (
+                {weekDays.map((_, di) => {
+                  const isScheduling = !!location.state?.candidateId;
+                  return (
+                    <div 
+                      key={di} 
+                      onClick={() => {
+                        if (isScheduling) {
+                          const selectedDate = new Date(weekDays[di]);
+                          selectedDate.setHours(9 + hi, 0, 0, 0);
+                          navigate('/interviews', { state: { ...location.state, selectedSlot: selectedDate.toISOString() } });
+                        }
+                      }}
+                      style={{ 
+                        height: '52px', borderLeft: '1px solid #f1f5f9', borderBottom: '1px solid #f8fafc', position: 'relative',
+                        cursor: isScheduling ? 'pointer' : 'default',
+                        background: isScheduling ? 'rgba(0,63,177,0.01)' : 'transparent',
+                        transition: 'background 0.15s'
+                      }}
+                      onMouseEnter={(e) => { if (isScheduling) e.currentTarget.style.background = 'rgba(0,63,177,0.08)' }}
+                      onMouseLeave={(e) => { if (isScheduling) e.currentTarget.style.background = 'rgba(0,63,177,0.01)' }}
+                    >
+                      {events.filter(e => e.day === di && Math.floor(e.startH) >= 9 + hi && Math.floor(e.startH) < 10 + hi).map((e, ei) => (
                       <div key={ei} style={{
                         position: 'absolute', top: '2px', left: '2px', right: '2px',
                         background: e.color, borderRadius: '6px', padding: '6px 8px',
                         height: `${(e.endH - e.startH) * 52 - 4}px`,
                         fontSize: '10px', fontWeight: 600, color: e.textColor,
-                        overflow: 'hidden',
+                        border: e.border || 'none',
+                        overflow: 'hidden', pointerEvents: 'none',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
                       }}>{e.title}</div>
                     ))}
                   </div>
-                ))}
+                );
+              })}
               </div>
             ))}
           </div>
