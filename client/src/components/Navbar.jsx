@@ -11,6 +11,7 @@ const Navbar = () => {
     { path: '/dashboard', label: 'Dashboard', icon: '📊' },
     { path: '/open-role', label: 'Open Role', icon: '➕' },
     { path: '/my-openings', label: 'My Openings', icon: '📋' },
+    { path: '/hr-analytics', label: 'Analytics', icon: '📈' },
   ];
 
   const candidateLinks = [

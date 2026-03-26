@@ -24,6 +24,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/roles', require('./routes/roles'));
 app.use('/api/job-openings', require('./routes/jobOpenings'));
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Health check
 app.get('/', (req, res) => {

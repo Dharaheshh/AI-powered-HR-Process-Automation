@@ -52,7 +52,7 @@ const applicationSchema = new mongoose.Schema(
   }
 );
 
-// One candidate can only apply once per job opening
-applicationSchema.index({ candidate: 1, jobOpening: 1 }, { unique: true });
+// Index for fast lookups (non-unique to allow re-applications after rejection)
+applicationSchema.index({ candidate: 1, jobOpening: 1 });
 
 module.exports = mongoose.model('Application', applicationSchema);

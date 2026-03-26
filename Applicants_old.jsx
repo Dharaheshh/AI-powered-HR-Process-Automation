@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getApplicantsAPI, getJobOpeningAPI, updateApplicationStatusAPI } from '../services/api';
-import DashboardLayout from '../components/layouts/DashboardLayout';
+import Navbar from '../components/Navbar';
 import toast from 'react-hot-toast';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
@@ -139,15 +139,17 @@ const Applicants = () => {
   }, [applicants, searchTerm, statusFilter, sortBy]);
 
   return (
-    <DashboardLayout>
+    <div className="dashboard-layout">
+      <Navbar />
+      <div className="dashboard-content animate-fade-in">
         <div style={{ marginBottom: '32px' }}>
-          <Link to="/my-openings" style={{ color: '#003fb1', textDecoration: 'none', marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.9rem', fontWeight: 600 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span> Back to Openings
+          <Link to="/my-openings" style={{ color: 'var(--color-primary)', textDecoration: 'none', marginBottom: '16px', display: 'inline-block' }}>
+            ← Back to Openings
           </Link>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-800" style={{ fontFamily: 'Manrope, sans-serif', marginBottom: '8px' }}>Applicants for {opening?.title || 'Loading...'}</h1>
-              <p className="text-slate-500">{applicants.length} total candidates have applied.</p>
+              <h1 style={{ marginBottom: '8px' }}>Applicants for {opening?.title || 'Loading...'}</h1>
+              <p style={{ color: 'var(--color-text-muted)' }}>{applicants.length} total candidates have applied.</p>
             </div>
           </div>
         </div>
@@ -331,6 +333,7 @@ const Applicants = () => {
             </table>
           </div>
         )}
+      </div>
 
       {/* Interview Scheduling Modal */}
       {showInterviewModal && (
@@ -396,7 +399,7 @@ const Applicants = () => {
         </div>
       )}
 
-    </DashboardLayout>
+    </div>
   );
 };
 

@@ -44,4 +44,7 @@ export const getMyApplicationsAPI = () => API.get('/applications/my');
 
 export const updateApplicationStatusAPI = (id, status, extraData = {}) => API.patch(`/applications/${id}/status`, { status, ...extraData });
 
+// Analytics
+export const getHRSummaryAPI = () => API.get('/analytics/hr-summary');
+
 export default API;

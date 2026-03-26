@@ -1,26 +1,27 @@
 @import "tailwindcss";
 
-/* ========== Design Tokens ========== */
+/* ========== Design Tokens (Light Enterprise Theme) ========== */
 :root {
-  --color-primary: #6366f1;
-  --color-primary-dark: #4f46e5;
-  --color-primary-light: #818cf8;
+  --color-primary: #003fb1;
+  --color-primary-dark: #002d80;
+  --color-primary-light: #1a56db;
   --color-accent: #06b6d4;
   --color-accent-dark: #0891b2;
-  --color-bg-dark: #0f172a;
-  --color-bg-card: #1e293b;
-  --color-bg-input: #334155;
-  --color-text: #f8fafc;
-  --color-text-muted: #94a3b8;
-  --color-border: #475569;
+  --color-bg-dark: #faf8ff;
+  --color-bg-card: #ffffff;
+  --color-bg-input: #f1f5f9;
+  --color-bg-secondary: #f3f3fe;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+  --color-border: #e2e8f0;
   --color-success: #10b981;
   --color-error: #ef4444;
   --color-warning: #f59e0b;
-  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
-  --gradient-bg: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-  --glass-bg: rgba(30, 41, 59, 0.7);
-  --glass-border: rgba(99, 102, 241, 0.2);
-  --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.15);
+  --gradient-primary: linear-gradient(135deg, #003fb1 0%, #1a56db 100%);
+  --gradient-bg: linear-gradient(135deg, #faf8ff 0%, #f3f3fe 50%, #faf8ff 100%);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 63, 177, 0.1);
+  --shadow-glow: 0 4px 24px rgba(0, 0, 0, 0.06);
 }
 
 /* ========== Reset & Base ========== */
@@ -46,10 +47,11 @@ body {
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
+  box-shadow: var(--shadow-glow);
 }
 
 .glass-strong {
-  background: rgba(30, 41, 59, 0.85);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   border: 1px solid var(--glass-border);
