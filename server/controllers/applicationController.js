@@ -4,6 +4,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const { sendStatusEmail } = require('../utils/emailService');
 
 // @desc    Apply to a job opening
 // @route   POST /api/applications/:jobOpeningId
@@ -21,13 +22,14 @@ const applyToJob = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This position is no longer accepting applications' });
     }
 
-    // Check if already applied
+    // Check if already applied and not rejected
     const existingApp = await Application.findOne({
       candidate: req.user._id,
       jobOpening: jobOpeningId,
-    });
-    if (existingApp) {
-      return res.status(400).json({ success: false, message: 'You have already applied to this position' });
+    }).sort({ createdAt: -1 });
+    
+    if (existingApp && existingApp.status !== 'rejected') {
+      return res.status(400).json({ success: false, message: 'You already have an active application for this position' });
     }
 
     // Create application base data
@@ -35,6 +37,8 @@ const applyToJob = async (req, res) => {
       candidate: req.user._id,
       jobOpening: jobOpeningId,
       role: jobOpening.role._id,
+      status: 'applied',
+      timeline: [{ status: 'applied', date: Date.now() }]
     };
 
     // ML Processing: Send to Python Microservice for Match Score
@@ -88,10 +92,43 @@ const applyToJob = async (req, res) => {
 // @access  HR only
 const getApplicants = async (req, res) => {
   try {
-    const applications = await Application.find({ jobOpening: req.params.jobOpeningId })
+    const rawApplications = await Application.find({ jobOpening: req.params.jobOpeningId })
       .populate('candidate', 'name email')
       .populate('role', 'name')
-      .sort({ appliedAt: -1 });
+      .sort({ appliedAt: -1 })
+      .lean();
+
+    const SLA_LIMITS = {
+      applied: 3, // days 
+      shortlisted: 5,
+      interview: 2 // SLA triggered 2 days AFTER interview
+    };
+
+    const now = Date.now();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    const applications = rawApplications.map(app => {
+      let daysElapsed = Math.floor((now - new Date(app.updatedAt).getTime()) / MS_PER_DAY);
+      let slaBreached = false;
+      let limit = SLA_LIMITS[app.status];
+
+      if (app.status === 'interview' && app.interviewDate) {
+        const interviewTime = new Date(app.interviewDate).getTime();
+        // If interview is in the future, daysElapsed is negative, so we clamp to 0 for display, 
+        // but SLA is not breached.
+        daysElapsed = Math.floor((now - interviewTime) / MS_PER_DAY);
+        if (daysElapsed > limit) slaBreached = true;
+      } else if (limit && daysElapsed > limit) {
+        slaBreached = true;
+      }
+
+      return {
+        ...app,
+        daysInStatus: Math.max(0, daysElapsed),
+        slaBreached,
+        slaLimit: limit || null
+      };
+    });
 
     res.status(200).json({ success: true, count: applications.length, applications });
   } catch (error) {
@@ -124,21 +161,39 @@ const getMyApplications = async (req, res) => {
 // @access  HR only
 const updateApplicationStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, interviewDate, interviewLink } = req.body;
     const validStatuses = ['applied', 'shortlisted', 'interview', 'rejected', 'offered'];
 
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    const application = await Application.findById(req.params.id);
+    const application = await Application.findById(req.params.id)
+      .populate('candidate', 'name email')
+      .populate('jobOpening', 'title');
 
     if (!application) {
       return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
     application.status = status;
+    let note = '';
+    if (status === 'interview') {
+      if (interviewDate) application.interviewDate = interviewDate;
+      if (interviewLink) application.interviewLink = interviewLink;
+      note = `Scheduled for ${new Date(interviewDate).toLocaleString()}`;
+    }
+    
+    application.timeline.push({
+      status,
+      date: Date.now(),
+      note: note || undefined
+    });
+    
     await application.save();
+
+    // Send email notification asynchronously
+    sendStatusEmail(application.candidate, application.jobOpening, status, application);
 
     res.status(200).json({ success: true, application });
   } catch (error) {

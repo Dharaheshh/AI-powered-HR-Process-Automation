@@ -25,12 +25,13 @@ const RoleDetail = () => {
 
       const statusRes = await getMyApplicationsAPI();
       const applications = statusRes.data.applications || [];
-      const appliedJobOpenings = applications.map(app => {
-        if (app.jobOpening && app.jobOpening._id) return app.jobOpening._id;
-        return app.jobOpening; // fallback if not populated
+      
+      const activeApp = applications.find(app => {
+        const appId = app.jobOpening && app.jobOpening._id ? app.jobOpening._id : app.jobOpening;
+        return appId === data.jobOpening._id && app.status !== 'rejected';
       });
       
-      if (appliedJobOpenings.includes(data.jobOpening._id)) {
+      if (activeApp) {
         setHasApplied(true);
       }
     } catch (error) {

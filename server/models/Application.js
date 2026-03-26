@@ -29,10 +29,23 @@ const applicationSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    interviewDate: {
+      type: Date
+    },
+    interviewLink: {
+      type: String
+    },
     appliedAt: {
       type: Date,
       default: Date.now,
     },
+    timeline: [
+      {
+        status: { type: String },
+        date: { type: Date, default: Date.now },
+        note: { type: String }
+      }
+    ]
   },
   {
     timestamps: true,

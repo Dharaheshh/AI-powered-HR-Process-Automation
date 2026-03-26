@@ -42,6 +42,6 @@ export const applyToJobAPI = async (jobOpeningId, formData) => {
 export const getApplicantsAPI = (jobOpeningId) => API.get(`/applications/job/${jobOpeningId}`);
 export const getMyApplicationsAPI = () => API.get('/applications/my');
 
-export const updateApplicationStatusAPI = (id, status) => API.patch(`/applications/${id}/status`, { status });
+export const updateApplicationStatusAPI = (id, status, extraData = {}) => API.patch(`/applications/${id}/status`, { status, ...extraData });
 
 export default API;

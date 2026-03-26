@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { getApplicantsAPI, getJobOpeningAPI, updateApplicationStatusAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import toast from 'react-hot-toast';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 const Applicants = () => {
   const { jobId } = useParams();
@@ -10,6 +12,14 @@ const Applicants = () => {
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+
+  // Interview Modal State
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [selectedAppId, setSelectedAppId] = useState(null);
+  const [interviewDate, setInterviewDate] = useState(new Date());
+  const [interviewTime, setInterviewTime] = useState('');
+  const [interviewLink, setInterviewLink] = useState('');
+  const availableTimes = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00'];
 
   // Filters & Sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +58,39 @@ const Applicants = () => {
       toast.success(`Candidate status updated to ${newStatus}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleScheduleInterview = async (e) => {
+    e.preventDefault();
+    if (!interviewDate || !interviewTime || !interviewLink) {
+      return toast.error("Please select a date, time, and provide a meeting link.");
+    }
+    
+    // Combine Date and Time
+    const [hours, minutes] = interviewTime.split(':');
+    const finalDate = new Date(interviewDate);
+    finalDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+
+    try {
+      setUpdatingId(selectedAppId);
+      await updateApplicationStatusAPI(selectedAppId, 'interview', { interviewDate: finalDate.toISOString(), interviewLink });
+      
+      // Update local state
+      setApplicants(prev => prev.map(app => 
+        app._id === selectedAppId ? { ...app, status: 'interview', interviewDate: finalDate.toISOString(), interviewLink } : app
+      ));
+      
+      toast.success('Interview scheduled and email sent to candidate!');
+      setShowInterviewModal(false);
+      setSelectedAppId(null);
+      setInterviewDate(new Date());
+      setInterviewTime('');
+      setInterviewLink('');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to schedule interview');
     } finally {
       setUpdatingId(null);
     }
@@ -206,9 +249,26 @@ const Applicants = () => {
                       )}
                     </td>
                     <td>
-                      <span className="status-pill" style={statusColors[app.status] || statusColors.applied}>
-                        {app.status}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                        <span className="status-pill" style={statusColors[app.status] || statusColors.applied}>
+                          {app.status}
+                        </span>
+                        {app.slaBreached && (
+                          <span style={{ 
+                            fontSize: '0.75rem', fontWeight: 600, color: '#ef4444', 
+                            background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', 
+                            borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.3)',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap'
+                          }}>
+                            ⚠️ SLA Breached ({app.daysInStatus}d / {app.slaLimit}d)
+                          </span>
+                        )}
+                        {!app.slaBreached && app.slaLimit && app.status !== 'rejected' && app.status !== 'offered' && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                            {app.daysInStatus} / {app.slaLimit} days
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {app.matchScore !== undefined && app.matchScore !== null ? (
@@ -243,7 +303,10 @@ const Applicants = () => {
                         )}
                         {(app.status === 'applied' || app.status === 'shortlisted') && (
                           <button 
-                            onClick={() => handleStatusUpdate(app._id, 'interview')}
+                            onClick={() => {
+                              setSelectedAppId(app._id);
+                              setShowInterviewModal(true);
+                            }}
                             disabled={updatingId === app._id}
                             style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', fontSize: '0.75rem', cursor: 'pointer' }}
                           >
@@ -271,6 +334,71 @@ const Applicants = () => {
           </div>
         )}
       </div>
+
+      {/* Interview Scheduling Modal */}
+      {showInterviewModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="glass" style={{ width: '400px', padding: '24px', borderRadius: '12px' }}>
+            <h2 style={{ marginTop: 0, marginBottom: '20px', color: 'var(--color-primary)' }}>Schedule Interview</h2>
+            <form onSubmit={handleScheduleInterview}>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Select Date</label>
+                <div style={{ background: 'var(--color-bg-secondary)', borderRadius: '8px', padding: '10px', color: 'black' }}>
+                  <Calendar onChange={setInterviewDate} value={interviewDate} minDate={new Date()} className="custom-calendar-hr" />
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Select Time Slot</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {availableTimes.map((time) => (
+                    <button
+                      key={time}
+                      type="button"
+                      onClick={() => setInterviewTime(time)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '6px',
+                        border: interviewTime === time ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        background: interviewTime === time ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
+                        color: interviewTime === time ? 'var(--color-primary)' : 'var(--color-text)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {time}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Meeting Link (Zoom, Meet, etc.)</label>
+                <input 
+                  type="url" 
+                  className="form-input" 
+                  placeholder="https://zoom.us/j/..." 
+                  value={interviewLink}
+                  onChange={(e) => setInterviewLink(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn" 
+                  style={{ background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+                  onClick={() => setShowInterviewModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={updatingId === selectedAppId}>
+                  {updatingId === selectedAppId ? 'Sending...' : 'Schedule & Notify'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
