@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getApplicantsAPI, getJobOpeningAPI } from '../services/api';
+import { getApplicantsAPI, getJobOpeningAPI, updateApplicationStatusAPI } from '../services/api';
 import Navbar from '../components/Navbar';
 import toast from 'react-hot-toast';
 
@@ -9,6 +9,7 @@ const Applicants = () => {
   const [opening, setOpening] = useState(null);
   const [applicants, setApplicants] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
 
   // Filters & Sorting state
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,10 +35,30 @@ const Applicants = () => {
     }
   };
 
+  const handleStatusUpdate = async (applicationId, newStatus) => {
+    try {
+      setUpdatingId(applicationId);
+      await updateApplicationStatusAPI(applicationId, newStatus);
+      
+      // Update local state
+      setApplicants(prev => prev.map(app => 
+        app._id === applicationId ? { ...app, status: newStatus } : app
+      ));
+      
+      toast.success(`Candidate status updated to ${newStatus}`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const statusColors = {
     applied: { bg: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)' },
     shortlisted: { bg: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
+    interview: { bg: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', border: '1px solid rgba(6, 182, 212, 0.2)' },
     rejected: { bg: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' },
+    offered: { bg: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)', color: 'white', border: 'none' }
   };
 
   const filteredAndSortedApplicants = useMemo(() => {
@@ -155,7 +176,8 @@ const Applicants = () => {
                   <th>Applied On</th>
                   <th>Resume</th>
                   <th>Status</th>
-                  <th>AI Score (Phase 3)</th>
+                  <th>AI Score</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -207,6 +229,40 @@ const Applicants = () => {
                           Pending AI
                         </span>
                       )}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {app.status === 'applied' && (
+                          <button 
+                            onClick={() => handleStatusUpdate(app._id, 'shortlisted')}
+                            disabled={updatingId === app._id}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(34, 197, 94, 0.3)', background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', fontSize: '0.75rem', cursor: 'pointer' }}
+                          >
+                            ✅ Shortlist
+                          </button>
+                        )}
+                        {(app.status === 'applied' || app.status === 'shortlisted') && (
+                          <button 
+                            onClick={() => handleStatusUpdate(app._id, 'interview')}
+                            disabled={updatingId === app._id}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(6, 182, 212, 0.3)', background: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', fontSize: '0.75rem', cursor: 'pointer' }}
+                          >
+                            📅 Interview
+                          </button>
+                        )}
+                        {app.status !== 'rejected' && (
+                          <button 
+                            onClick={() => handleStatusUpdate(app._id, 'rejected')}
+                            disabled={updatingId === app._id}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 0.1)', color: '#f87171', fontSize: '0.75rem', cursor: 'pointer' }}
+                          >
+                            ❌ Reject
+                          </button>
+                        )}
+                        {app.status === 'rejected' && (
+                          <span style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>Closed</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -119,4 +119,31 @@ const getMyApplications = async (req, res) => {
   }
 };
 
-module.exports = { applyToJob, getApplicants, getMyApplications };
+// @desc    Update application status
+// @route   PATCH /api/applications/:id/status
+// @access  HR only
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['applied', 'shortlisted', 'interview', 'rejected', 'offered'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const application = await Application.findById(req.params.id);
+
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    application.status = status;
+    await application.save();
+
+    res.status(200).json({ success: true, application });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { applyToJob, getApplicants, getMyApplications, updateApplicationStatus };
