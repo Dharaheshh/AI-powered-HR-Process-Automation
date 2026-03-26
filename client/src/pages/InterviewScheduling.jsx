@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getAllApplicationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -11,6 +12,23 @@ const InterviewScheduling = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [platform, setPlatform] = useState('google');
   const [selectedSlot, setSelectedSlot] = useState(null);
+  
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchApps = async () => {
+      try {
+        const res = await getAllApplicationsAPI();
+        setApplications(res.data.applications);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchApps();
+  }, []);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -28,10 +46,16 @@ const InterviewScheduling = () => {
     { start: '04:30 PM', end: '05:30 PM', host: 'Alex Rivera (Tech)' },
   ];
 
-  const upcomingInterviews = [
-    { title: 'Initial Screen', subtitle: 'Compliance — Oct 5', coordinator: 'Alex Rivera', color: '#003fb1' },
-    { title: 'Technical Interview', subtitle: 'Oct 12 — 11:00 AM', coordinator: 'Michael Chen', color: '#10b981' },
-  ];
+  const upcomingInterviews = applications.filter(a => a.status === 'interview').map(a => ({
+    title: a.jobOpening?.title || 'Initial Screen',
+    subtitle: a.interviewDate ? new Date(a.interviewDate).toLocaleString() : 'Pending Date',
+    coordinator: a.candidate?.name || 'Unknown',
+    color: '#003fb1',
+    link: a.interviewLink
+  }));
+
+  const shortlistedCandidates = applications.filter(a => a.status === 'shortlisted');
+  const targetCandidate = shortlistedCandidates.length > 0 ? shortlistedCandidates[0] : null;
 
   return (
     <DashboardLayout>
@@ -48,12 +72,18 @@ const InterviewScheduling = () => {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#1e293b', margin: 0, fontFamily: 'Manrope' }}>Candidate Planning</h1>
           <p style={{ fontSize: '13px', color: '#64748b', marginTop: '4px' }}>
-            Finalizing the Technical Round for <strong>Sarah Jenkins</strong> (Senior Frontend Dev)
+            {targetCandidate ? (
+              <>Finalizing the Technical Round for <strong>{targetCandidate.candidate?.name}</strong> ({targetCandidate.jobOpening?.title})</>
+            ) : (
+              "No shortlisted candidates currently awaiting interview scheduling."
+            )}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#ecfdf5', color: '#059669' }}>Available</span>
-          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#eff4ff', color: '#003fb1' }}>Stage 3 of 4</span>
+          <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#ecfdf5', color: '#059669' }}>
+            {targetCandidate ? 'Available' : 'No Pending'}
+          </span>
+          {targetCandidate && <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, background: '#eff4ff', color: '#003fb1' }}>Stage 3 of 4</span>}
         </div>
       </div>
 
@@ -185,17 +215,22 @@ const InterviewScheduling = () => {
           </div>
 
           {/* Upcoming */}
-          <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e8eaed', padding: '20px' }}>
+          <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e8eaed', padding: '20px', maxHeight: '300px', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Upcoming</p>
-              <span style={{ fontSize: '11px', color: '#003fb1', fontWeight: 600 }}>2 Confirmed</span>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', margin: 0 }}>Upcoming Interviews</p>
+              <span style={{ fontSize: '11px', color: '#003fb1', fontWeight: 600 }}>{upcomingInterviews.length} Confirmed</span>
             </div>
-            {upcomingInterviews.map((inter, i) => (
+            {upcomingInterviews.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', margin: '20px 0' }}>No upcoming interviews scheduled.</p>
+            ) : upcomingInterviews.map((inter, i) => (
               <div key={i} style={{ display: 'flex', gap: '10px', padding: '10px', borderRadius: '8px', borderLeft: `3px solid ${inter.color}`, background: '#f8fafc', marginBottom: '8px' }}>
-                <div>
+                <div style={{ width: '100%' }}>
                   <p style={{ fontSize: '12px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{inter.title}</p>
                   <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>{inter.subtitle}</p>
-                  <p style={{ fontSize: '10px', color: '#94a3b8', margin: '2px 0 0' }}>Host: {inter.coordinator}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <p style={{ fontSize: '10px', color: '#94a3b8', margin: 0 }}>Candidate: {inter.coordinator}</p>
+                    {inter.link && <a href={inter.link} target="_blank" rel="noreferrer" style={{ fontSize: '10px', color: '#003fb1', fontWeight: 600, textDecoration: 'none' }}>Join ↗</a>}
+                  </div>
                 </div>
               </div>
             ))}

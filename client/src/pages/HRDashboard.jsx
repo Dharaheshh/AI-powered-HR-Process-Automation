@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { getHRSummaryAPI, getMyJobOpeningsAPI } from '../services/api';
+import { getHRSummaryAPI, getMyJobOpeningsAPI, getAllApplicationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
 const StatCard = ({ label, value, color, sub }) => (
@@ -20,16 +20,20 @@ const HRDashboard = () => {
   const [stats, setStats] = useState({ totalApplications: 0, totalActiveJobs: 0, totalHires: 0, funnelData: [] });
   const [openings, setOpenings] = useState([]);
 
+  const [allApps, setAllApps] = useState([]);
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const [analyticsRes, openingsRes] = await Promise.all([
+      const [analyticsRes, openingsRes, appsRes] = await Promise.all([
         getHRSummaryAPI().catch(() => ({ data: { data: { totalApplications: 0, totalActiveJobs: 0, totalHires: 0, funnelData: [] } } })),
-        getMyJobOpeningsAPI().catch(() => ({ data: { jobOpenings: [] } }))
+        getMyJobOpeningsAPI().catch(() => ({ data: { jobOpenings: [] } })),
+        getAllApplicationsAPI().catch(() => ({ data: { applications: [] } }))
       ]);
       setStats(analyticsRes.data.data);
       setOpenings(openingsRes.data.jobOpenings || []);
+      setAllApps(appsRes.data.applications || []);
     } catch (e) { console.error('Dashboard fetch failed', e); }
   };
 
@@ -48,6 +52,10 @@ const HRDashboard = () => {
   ];
   const maxCount = Math.max(...pipelineStages.map(s => s.count), 1);
 
+  // Computed live metrics
+  const slaBreachesCount = allApps.filter(a => a.slaBreached).length;
+  const highMatchPendingCount = allApps.filter(a => a.status === 'applied' && (a.matchScore || 0) >= 80).length;
+
   return (
     <DashboardLayout>
       {/* Header */}
@@ -61,11 +69,12 @@ const HRDashboard = () => {
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '28px' }}>
         <StatCard label="Total Applicants" value={stats.totalApplications} color="#003fb1" sub="Across all roles" />
         <StatCard label="Shortlisted" value={shortlistedCount} color="#10b981" sub="Ready for review" />
         <StatCard label="Interviews" value={interviewCount} color="#06b6d4" sub="Scheduled" />
-        <StatCard label="Pending Actions" value={appliedCount} color="#ef4444" sub="Need attention" />
+        <StatCard label="Pending Actions" value={appliedCount} color="#f59e0b" sub="Need attention" />
+        <StatCard label="SLA Breaches" value={slaBreachesCount} color="#ef4444" sub="Urgent action needed" />
       </div>
 
       {/* Main Grid */}
@@ -175,7 +184,11 @@ const HRDashboard = () => {
               <p style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', margin: 0 }}>HireFlow AI Insight</p>
             </div>
             <p style={{ fontSize: '13px', opacity: 0.9, lineHeight: 1.6, margin: 0 }}>
-              Your hiring pipeline is healthy. Focus on clearing {appliedCount} pending applications to maintain your SLA targets.
+              {highMatchPendingCount > 0 
+                ? `You have ${highMatchPendingCount} high-match candidates (>80%) waiting for review. Prioritize these to secure top talent.` 
+                : slaBreachesCount > 0 
+                  ? `There are ${slaBreachesCount} SLA breaches in your pipeline. Clear bottlenecks immediately.` 
+                  : `Your hiring pipeline is healthy. Keep tracking and moving the ${appliedCount} pending candidates forward.`}
             </p>
           </div>
 

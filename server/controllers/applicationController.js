@@ -201,4 +201,41 @@ const updateApplicationStatus = async (req, res) => {
   }
 };
 
-module.exports = { applyToJob, getApplicants, getMyApplications, updateApplicationStatus };
+// @desc    Get all applications globally
+// @route   GET /api/applications/all
+// @access  HR only
+const getAllApplications = async (req, res) => {
+  try {
+    const applications = await Application.find()
+      .populate('jobOpening', 'title location jobType')
+      .populate('candidate', 'name email profile')
+      .sort({ appliedAt: -1 });
+    
+    res.status(200).json({ success: true, count: applications.length, applications });
+  } catch (error) {
+    console.error('Error fetching all applications:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Get a single application by ID
+// @route   GET /api/applications/:id
+// @access  HR only
+const getApplicationById = async (req, res) => {
+  try {
+    const application = await Application.findById(req.params.id)
+      .populate('jobOpening', 'title location jobType')
+      .populate('candidate', 'name email profile');
+    
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+    
+    res.status(200).json({ success: true, application });
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+module.exports = { applyToJob, getApplicants, getMyApplications, updateApplicationStatus, getAllApplications, getApplicationById };

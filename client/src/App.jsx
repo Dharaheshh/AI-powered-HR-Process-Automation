@@ -19,6 +19,9 @@ import InterviewScheduling from './pages/InterviewScheduling';
 import RecruiterAvailability from './pages/RecruiterAvailability';
 import HiringInsights from './pages/HiringInsights';
 import CandidateFollowUp from './pages/CandidateFollowUp';
+import Candidates from './pages/Candidates';
+import Settings from './pages/Settings';
+import SLAAlerts from './pages/SLAAlerts';
 import './index.css';
 
 // Redirect authenticated users away from auth pages
@@ -58,14 +61,15 @@ function App() {
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['hr']}><HRDashboard /></ProtectedRoute>} />
           <Route path="/hr-analytics" element={<ProtectedRoute allowedRoles={['hr']}><HRAnalytics /></ProtectedRoute>} />
           <Route path="/open-role" element={<ProtectedRoute allowedRoles={['hr']}><OpenRole /></ProtectedRoute>} />
-          <Route path="/my-openings" element={<ProtectedRoute allowedRoles={['hr']}><MyOpenings /></ProtectedRoute>} />
+          <Route path="/job-requirements" element={<ProtectedRoute allowedRoles={['hr']}><MyOpenings /></ProtectedRoute>} />
           <Route path="/applicants/:jobId" element={<ProtectedRoute allowedRoles={['hr']}><Applicants /></ProtectedRoute>} />
           <Route path="/interviews" element={<ProtectedRoute allowedRoles={['hr']}><InterviewScheduling /></ProtectedRoute>} />
           <Route path="/calendar" element={<ProtectedRoute allowedRoles={['hr']}><RecruiterAvailability /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute allowedRoles={['hr']}><HiringInsights /></ProtectedRoute>} />
-          <Route path="/candidates" element={<ProtectedRoute allowedRoles={['hr']}><CandidateFollowUp /></ProtectedRoute>} />
-          <Route path="/sla-alerts" element={<ProtectedRoute allowedRoles={['hr']}><HiringInsights /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute allowedRoles={['hr']}><HRDashboard /></ProtectedRoute>} />
+          <Route path="/candidates" element={<ProtectedRoute allowedRoles={['hr']}><Candidates /></ProtectedRoute>} />
+          <Route path="/candidates/:id" element={<ProtectedRoute allowedRoles={['hr']}><CandidateFollowUp /></ProtectedRoute>} />
+          <Route path="/sla-alerts" element={<ProtectedRoute allowedRoles={['hr']}><SLAAlerts /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute allowedRoles={['hr']}><Settings /></ProtectedRoute>} />
 
           {/* Candidate protected routes */}
           <Route path="/candidate/dashboard" element={<ProtectedRoute allowedRoles={['candidate']}><CandidateDashboard /></ProtectedRoute>} />

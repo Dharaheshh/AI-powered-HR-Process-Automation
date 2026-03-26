@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getAllApplicationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
 const DAYS_OF_WEEK = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
@@ -22,13 +23,45 @@ const RecruiterAvailability = () => {
     { name: 'Culture Fit', duration: '45 Minutes', dots: '•' },
   ];
 
-  // Mock events for the week view
+  const [applications, setApplications] = useState([]);
+
+  useEffect(() => {
+    const fetchApps = async () => {
+      try {
+        const res = await getAllApplicationsAPI();
+        setApplications(res.data.applications);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchApps();
+  }, []);
+
+  const startOfWeek = new Date(weekDays[0]);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(weekDays[6]);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const realEvents = applications
+    .filter(a => a.status === 'interview' && a.interviewDate)
+    .map(a => ({ date: new Date(a.interviewDate), data: a }))
+    .filter(e => e.date >= startOfWeek && e.date <= endOfWeek)
+    .map(e => {
+      const jsDay = e.date.getDay(); 
+      const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
+      const startH = e.date.getHours() + (e.date.getMinutes() / 60);
+      return {
+        day: dayIndex,
+        startH: startH,
+        endH: startH + 1, 
+        title: e.data.candidate?.name?.split(' ')[0] || 'Interview',
+        color: '#dbeafe', textColor: '#003fb1'
+      };
+    });
+
   const events = [
-    { day: 1, startH: 10, endH: 12, title: 'Sarah Frontend', color: '#dbeafe', textColor: '#003fb1' },
-    { day: 2, startH: 10, endH: 11.5, title: 'John Review', color: '#d1fae5', textColor: '#059669' },
-    { day: 2, startH: 14, endH: 15.5, title: 'Team Standup', color: '#003fb1', textColor: '#fff' },
-    { day: 3, startH: 11, endH: 12, title: 'Anna Meeting', color: '#dbeafe', textColor: '#003fb1' },
-    { day: 6, startH: 13, endH: 14, title: 'HR Final', color: '#f1f5f9', textColor: '#475569' },
+    { day: 2, startH: 14, endH: 15.5, title: 'Focus (Blocked)', color: '#f1f5f9', textColor: '#475569' },
+    ...realEvents
   ];
 
   return (
@@ -189,8 +222,8 @@ const RecruiterAvailability = () => {
       {/* Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         {[
-          { icon: 'schedule', label: 'Focus Time', value: '14.5 hrs', sub: 'Blocked this week', color: '#003fb1' },
-          { icon: 'event_available', label: 'Interviews Scheduled', value: '12 Total', sub: 'Across all roles', color: '#10b981' },
+          { icon: 'schedule', label: 'Focus Time', value: '1.5 hrs', sub: 'Blocked this week', color: '#003fb1' },
+          { icon: 'event_available', label: 'Interviews Scheduled', value: `${applications.filter(a => a.status === 'interview').length} Total`, sub: 'Across all roles', color: '#10b981' },
           { icon: 'speed', label: 'Availability Score', value: '92%', sub: 'Calendar utilization', color: '#06b6d4' },
         ].map((s, i) => (
           <div key={i} style={{

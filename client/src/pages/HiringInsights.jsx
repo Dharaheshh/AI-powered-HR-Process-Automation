@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
-import { getHRSummaryAPI } from '../services/api';
+import { getHRSummaryAPI, getAllApplicationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
 const HiringInsights = () => {
   const [stats, setStats] = useState({ totalApplications: 0, totalActiveJobs: 0, totalHires: 0, funnelData: [], popularRolesData: [] });
+  const [allApps, setAllApps] = useState([]);
 
   useEffect(() => {
     (async () => {
-      try { const { data } = await getHRSummaryAPI(); setStats(data.data); } catch {}
+      try { 
+        const [{ data: statsData }, { data: appsData }] = await Promise.all([
+          getHRSummaryAPI(),
+          getAllApplicationsAPI().catch(() => ({ data: { applications: [] } }))
+        ]);
+        setStats(statsData.data);
+        setAllApps(appsData.applications || []);
+      } catch {}
     })();
   }, []);
 
@@ -34,10 +42,28 @@ const HiringInsights = () => {
     { name: 'Alex Rivera', roles: 4, color: '#f59e0b' },
   ];
 
-  const velocityData = [
-    { phase: 'Screening', avgLatency: '1.2 Days' },
-    { phase: 'Culture Fit', avgLatency: '0.8 Days' },
-  ];
+  const statusTimes = {};
+  allApps.forEach(app => {
+    if (app.timeline && app.timeline.length > 1) {
+      for (let i = 0; i < app.timeline.length - 1; i++) {
+        const current = app.timeline[i];
+        const next = app.timeline[i + 1];
+        const diffDays = (new Date(next.date) - new Date(current.date)) / (1000 * 60 * 60 * 24);
+        
+        if (!statusTimes[current.status]) statusTimes[current.status] = [];
+        statusTimes[current.status].push(diffDays);
+      }
+    }
+  });
+
+  const velocityData = Object.keys(statusTimes).map(status => {
+    const avg = statusTimes[status].reduce((a, b) => a + b, 0) / statusTimes[status].length;
+    return { phase: status.charAt(0).toUpperCase() + status.slice(1), avgLatency: `${avg.toFixed(1)} Days`, raw: avg };
+  }).sort((a, b) => b.raw - a.raw);
+
+  if (velocityData.length === 0) {
+    velocityData.push({ phase: 'Screening', avgLatency: 'Pending limits', raw: 0 });
+  }
 
   return (
     <DashboardLayout>
@@ -171,8 +197,8 @@ const HiringInsights = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: '#fef2f2', borderRadius: '8px', marginBottom: '16px', border: '1px solid #fecaca' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#ef4444' }}>error</span>
             <div>
-              <p style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', margin: 0 }}>Technical Review Phase</p>
-              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>Wait times have increased by 2.4 days in the last week for Engineering roles.</p>
+              <p style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626', margin: 0 }}>{velocityData[0]?.phase || 'Screening'} Phase</p>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>This is currently your slowest hiring stage, averaging {velocityData[0]?.avgLatency}.</p>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>

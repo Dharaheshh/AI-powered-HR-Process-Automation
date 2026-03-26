@@ -11,7 +11,7 @@ const Sidebar = () => {
 
   const menuItems = [
     { path: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { path: '/my-openings', label: 'Job Requirements', icon: 'work' },
+    { path: '/job-requirements', label: 'Job Requirements', icon: 'work' },
     { path: '/candidates', label: 'Candidates', icon: 'people' },
     { path: '/interviews', label: 'Interviews', icon: 'event_note' },
     { path: '/calendar', label: 'Calendar', icon: 'calendar_month' },
