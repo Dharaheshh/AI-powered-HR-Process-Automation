@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getAllApplicationsAPI, updateApplicationStatusAPI } from '../services/api';
+import { getAllApplicationsAPI, updateApplicationStatusAPI, parseScheduleAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 
@@ -24,6 +24,16 @@ const InterviewScheduling = () => {
   
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // AI Copilot State
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [copilotCommand, setCopilotCommand] = useState('');
+  const [copilotParsing, setCopilotParsing] = useState(false);
+  const [copilotResult, setCopilotResult] = useState(null);
+  const [copilotSlot, setCopilotSlot] = useState(null);
+  const [copilotPlatform, setCopilotPlatform] = useState('google');
+  const [copilotScheduling, setCopilotScheduling] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     const fetchApps = async () => {
@@ -86,6 +96,102 @@ const InterviewScheduling = () => {
       toast.error(err.response?.data?.message || "Scheduling failed");
     } finally {
       setProcessing(false);
+    }
+  };
+
+  // AI Copilot Handlers
+  const handleCopilotParse = async () => {
+    if (!copilotCommand.trim()) return toast.error('Type or speak a scheduling command');
+    try {
+      setCopilotParsing(true);
+      setCopilotResult(null);
+      setCopilotSlot(null);
+      const res = await parseScheduleAPI(copilotCommand);
+      setCopilotResult(res.data);
+      if (res.data.availableSlots?.length > 0) {
+        setCopilotSlot(res.data.availableSlots[0]);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to parse command');
+    } finally {
+      setCopilotParsing(false);
+    }
+  };
+
+  const handleCopilotConfirm = async () => {
+    if (!copilotResult?.application?._id || !copilotSlot) return toast.error('Missing scheduling data');
+    const dateStr = copilotResult.date;
+    const timeParts = copilotSlot.start.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+    if (!timeParts) return toast.error('Invalid time slot');
+    let hours = parseInt(timeParts[1]);
+    const mins = parseInt(timeParts[2]);
+    const ampm = timeParts[3].toUpperCase();
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    const scheduledDate = new Date(dateStr + `T${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:00`);
+    const link = copilotPlatform === 'google' ? 'https://meet.google.com/abc-def-ghi' : 'https://zoom.us/j/1234567890';
+    
+    try {
+      setCopilotScheduling(true);
+      await updateApplicationStatusAPI(copilotResult.application._id, 'interview', {
+        interviewDate: scheduledDate,
+        interviewLink: link
+      });
+      toast.success(`Interview scheduled for ${copilotResult.candidate?.name}!`);
+      setCopilotOpen(false);
+      setCopilotResult(null);
+      setCopilotCommand('');
+      // Refresh applications list
+      const res = await getAllApplicationsAPI();
+      setApplications(res.data.applications);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Scheduling failed');
+    } finally {
+      setCopilotScheduling(false);
+    }
+  };
+
+  const startVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      return toast.error('Voice input is not supported in this browser. Use Chrome for best results.');
+    }
+    
+    if (isListening) return; // Prevent double-start
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN'; // Better for Indian English accents
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.continuous = false;
+    
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast('🎤 Listening... Speak your scheduling command', { duration: 3000 });
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      const errorMap = {
+        'no-speech': 'No speech detected. Please try again.',
+        'audio-capture': 'No microphone found. Check your mic settings.',
+        'not-allowed': 'Microphone access denied. Allow mic permission in browser settings.',
+        'network': 'Network error. Check your internet connection.',
+        'aborted': 'Voice input was cancelled.',
+      };
+      toast.error(errorMap[event.error] || `Voice error: ${event.error}`);
+    };
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setCopilotCommand(transcript);
+      toast.success(`Voice captured: "${transcript}"`);
+    };
+    
+    try {
+      recognition.start();
+    } catch (e) {
+      setIsListening(false);
+      toast.error('Could not start voice recognition. Try refreshing the page.');
     }
   };
 
@@ -287,6 +393,162 @@ const InterviewScheduling = () => {
           </div>
         </div>
       </div>
+
+      {/* AI COPILOT FAB */}
+      {!copilotOpen && (
+        <button onClick={() => setCopilotOpen(true)} style={{
+          position: 'fixed', bottom: '32px', right: '32px', width: '56px', height: '56px',
+          borderRadius: '50%', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', border: 'none',
+          color: '#fff', cursor: 'pointer', boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          transition: 'transform 0.2s'
+        }} onMouseEnter={e => e.target.style.transform = 'scale(1.1)'} onMouseLeave={e => e.target.style.transform = 'scale(1)'}>
+          <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>smart_toy</span>
+        </button>
+      )}
+
+      {/* AI COPILOT PANEL */}
+      {copilotOpen && (
+        <div style={{
+          position: 'fixed', bottom: '32px', right: '32px', width: '440px',
+          maxHeight: '85vh', overflowY: 'auto',
+          background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.15)', zIndex: 200,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          {/* Header */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', borderRadius: '16px 16px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#fff' }}>smart_toy</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#fff' }}>AI Scheduling Copilot</h3>
+                <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>Schedule interviews using natural language</p>
+              </div>
+            </div>
+            <button onClick={() => setCopilotOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#fff' }}>close</span>
+            </button>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Input */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Command</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text" value={copilotCommand}
+                  onChange={(e) => setCopilotCommand(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCopilotParse()}
+                  placeholder='e.g. "Schedule Priya for technical interview tomorrow after 3 PM"'
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none' }}
+                />
+                <button onClick={startVoiceInput} style={{
+                  padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', background: isListening ? '#ef4444' : '#f8fafc',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '20px', color: isListening ? '#fff' : '#64748b', animation: isListening ? 'pulse 1s infinite' : 'none' }}>mic</span>
+                </button>
+              </div>
+              <button onClick={handleCopilotParse} disabled={copilotParsing || !copilotCommand.trim()} style={{
+                width: '100%', marginTop: '10px', padding: '10px', borderRadius: '8px',
+                background: copilotParsing ? '#94a3b8' : '#8b5cf6', color: '#fff', border: 'none',
+                fontWeight: 700, fontSize: '13px', cursor: copilotParsing ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+              }}>
+                {copilotParsing ? <><span className="material-symbols-outlined" style={{ animation: 'spin 1s linear infinite', fontSize: '16px' }}>autorenew</span> Parsing...</>
+                  : <><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>psychology</span> Parse Command</>}
+              </button>
+            </div>
+
+            {/* Parsed Preview */}
+            {copilotResult && (
+              <div style={{ background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>Parsed Command</h4>
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px', background: copilotResult.parsed?.intent === 'reschedule' ? '#fef3c7' : '#dcfce7', color: copilotResult.parsed?.intent === 'reschedule' ? '#92400e' : '#166534' }}>
+                    {copilotResult.parsed?.intent?.toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
+                  <div><span style={{ color: '#94a3b8' }}>Candidate: </span><strong>{copilotResult.parsed?.candidateName || '—'}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Type: </span><strong>{copilotResult.parsed?.interviewType}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Date: </span><strong>{copilotResult.date}</strong></div>
+                  <div><span style={{ color: '#94a3b8' }}>Time: </span><strong>{copilotResult.parsed?.timeRange || 'Any'}</strong></div>
+                </div>
+
+                {/* Validation */}
+                {copilotResult.validationErrors?.length > 0 && (
+                  <div style={{ padding: '10px 16px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
+                    {copilotResult.validationErrors.map((e, i) => (
+                      <p key={i} style={{ margin: '4px 0', fontSize: '12px', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>error</span> {e}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Candidate Found */}
+                {copilotResult.candidate && copilotResult.application && copilotResult.validationErrors?.length === 0 && (
+                  <>
+                    <div style={{ padding: '10px 16px', background: '#ecfdf5', borderTop: '1px solid #d1fae5', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#059669' }}>check_circle</span>
+                        <strong style={{ color: '#065f46' }}>{copilotResult.candidate.name}</strong>
+                        <span style={{ color: '#047857' }}>— {copilotResult.application.jobTitle}</span>
+                      </div>
+                      <span style={{ color: '#64748b' }}>Stage: {copilotResult.application.status} | Score: {copilotResult.application.matchScore ?? 'N/A'}%</span>
+                    </div>
+
+                    {/* Slot Selection */}
+                    <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Available Slots</label>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {copilotResult.availableSlots?.map((s, i) => (
+                          <button key={i} onClick={() => setCopilotSlot(s)} style={{
+                            padding: '6px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                            background: copilotSlot?.start === s.start ? '#8b5cf6' : '#f1f5f9',
+                            color: copilotSlot?.start === s.start ? '#fff' : '#475569',
+                            border: copilotSlot?.start === s.start ? '1px solid #7c3aed' : '1px solid #e2e8f0'
+                          }}>{s.start}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Platform */}
+                    <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '6px', display: 'block' }}>Platform</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {['google', 'zoom'].map(p => (
+                          <button key={p} onClick={() => setCopilotPlatform(p)} style={{
+                            padding: '6px 14px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                            background: copilotPlatform === p ? '#003fb1' : '#f1f5f9',
+                            color: copilotPlatform === p ? '#fff' : '#475569',
+                            border: copilotPlatform === p ? '1px solid #003fb1' : '1px solid #e2e8f0'
+                          }}>{p === 'google' ? 'Google Meet' : 'Zoom'}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Confirm */}
+                    <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0' }}>
+                      <button onClick={handleCopilotConfirm} disabled={copilotScheduling} style={{
+                        width: '100%', padding: '10px', borderRadius: '8px',
+                        background: copilotScheduling ? '#94a3b8' : '#059669', color: '#fff',
+                        border: 'none', fontWeight: 700, fontSize: '13px', cursor: copilotScheduling ? 'not-allowed' : 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                      }}>
+                        {copilotScheduling ? 'Scheduling...' : <><span className="material-symbols-outlined" style={{ fontSize: '16px' }}>event_available</span> Confirm & Schedule</>}
+                      </button>
+                      <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>This will update timeline, send email invite, and block the calendar slot.</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

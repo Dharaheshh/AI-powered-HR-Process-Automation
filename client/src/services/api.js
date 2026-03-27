@@ -65,5 +65,6 @@ export const ignoreRecommendationAPI = (id) => API.put(`/recommendations/${id}/i
 export const analyzeResumeAPI = (data) => API.post('/ai/analyze-resume', data, {
   headers: { 'Content-Type': 'multipart/form-data' }
 });
+export const parseScheduleAPI = (command) => API.post('/ai/parse-schedule', { command });
 
 export default API;

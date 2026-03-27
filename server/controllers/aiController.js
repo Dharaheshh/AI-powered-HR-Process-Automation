@@ -107,3 +107,100 @@ Respond with ONLY a valid JSON object in this exact format (no markdown, no extr
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Parse a natural language scheduling command via AI and find candidates
+// @route   POST /api/ai/parse-schedule
+// @access  HR only
+exports.parseScheduleCommand = async (req, res) => {
+  try {
+    const { command } = req.body;
+    if (!command || !command.trim()) {
+      return res.status(400).json({ success: false, message: 'Please enter a scheduling command.' });
+    }
+
+    // Step 1: Send to Python NLP parser
+    let parsed;
+    try {
+      const formData = new (require('form-data'))();
+      formData.append('command', command);
+      const nlpRes = await axios.post('http://localhost:8000/parse-schedule', formData, {
+        headers: { ...formData.getHeaders() },
+        timeout: 10000
+      });
+      parsed = nlpRes.data.parsed;
+    } catch (nlpErr) {
+      console.error('NLP parse failed:', nlpErr.message);
+      return res.status(503).json({ success: false, message: 'Could not reach AI parser. Ensure Python ML service is running.' });
+    }
+
+    // Step 2: Find the candidate by name
+    const User = require('../models/User');
+    const Application = require('../models/Application');
+    
+    let candidateMatch = null;
+    let application = null;
+
+    if (parsed.candidateName) {
+      // Fuzzy search by name (case-insensitive, partial)
+      const candidates = await User.find({
+        role: 'candidate',
+        name: { $regex: parsed.candidateName, $options: 'i' }
+      }).select('name email').lean();
+
+      if (candidates.length > 0) {
+        candidateMatch = candidates[0];
+        
+        // Find their latest active application
+        application = await Application.findOne({
+          candidate: candidateMatch._id,
+          status: { $in: ['applied', 'shortlisted', 'interview'] }
+        })
+          .populate('jobOpening', 'title')
+          .populate('candidate', 'name email')
+          .sort({ appliedAt: -1 })
+          .lean();
+      }
+    }
+
+    // Step 3: Generate time slots for the parsed date
+    const slotDate = new Date(parsed.date);
+    const baseSlots = [
+      { start: '09:00 AM', end: '10:00 AM' },
+      { start: '10:30 AM', end: '11:30 AM' },
+      { start: '01:00 PM', end: '02:00 PM' },
+      { start: '02:30 PM', end: '03:30 PM' },
+      { start: '04:00 PM', end: '05:00 PM' },
+    ];
+
+    // Step 4: Validate
+    let validationErrors = [];
+    if (!candidateMatch) {
+      validationErrors.push(`Could not find candidate "${parsed.candidateName || 'unknown'}". Please check the name.`);
+    }
+    if (candidateMatch && !application) {
+      validationErrors.push(`${candidateMatch.name} has no active application in the pipeline.`);
+    }
+    if (application && application.status === 'interview' && parsed.intent === 'schedule') {
+      validationErrors.push(`${candidateMatch.name} already has an interview scheduled. Use 'reschedule' instead.`);
+    }
+
+    res.status(200).json({
+      success: true,
+      parsed,
+      candidate: candidateMatch,
+      application: application ? {
+        _id: application._id,
+        status: application.status,
+        jobTitle: application.jobOpening?.title,
+        matchScore: application.matchScore
+      } : null,
+      availableSlots: baseSlots,
+      date: parsed.date,
+      validationErrors
+    });
+
+  } catch (error) {
+    console.error('Copilot parse error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
