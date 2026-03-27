@@ -29,51 +29,103 @@ const sendStatusEmail = async (candidate, jobOpening, newStatus, applicationData
   let html = '';
   const candidateName = candidate.name || 'Candidate';
   const roleTitle = jobOpening.title || 'the role';
+  
+  // Data for transparency
+  const matchScore = applicationData?.matchScore ? applicationData.matchScore + '%' : 'Pending Evaluation';
+  const appliedDate = applicationData?.appliedAt ? new Date(applicationData.appliedAt).toLocaleDateString() : 'N/A';
+  
+  // Extract latest notes to show transparency to candidate
+  const notes = applicationData?.recruiterNotes || [];
+  const latestNote = notes.length > 0 ? notes[notes.length - 1].text : 'No specific feedback provided.';
 
   switch (newStatus) {
     case 'shortlisted':
-      subject = `Update on your application for ${roleTitle} - Shortlisted!`;
+      subject = `[HireFlow AI] Update on your application for ${roleTitle} - Shortlisted!`;
       html = `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #4ade80;">Congratulations, ${candidateName}!</h2>
-          <p>We are thrilled to inform you that your application for the <strong>${roleTitle}</strong> position has been shortlisted.</p>
-          <p>Our team was very impressed with your background and we will be reaching out soon with the next steps regarding the interview process.</p>
-          <p>Thank you for your interest in joining our team!</p>
-          <p>Best regards,<br/>The Hiring Team</p>
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #003fb1; margin-top: 0;">Application Status Update</h2>
+          <p>Dear <strong>${candidateName}</strong>,</p>
+          <p>We are thrilled to inform you that your application for the <strong>${roleTitle}</strong> position has been <strong>shortlisted</strong>.</p>
+          
+          <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin: 20px 0; border: 1px solid #e8eaed;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Transparency Report</h3>
+            <p style="margin: 0 0 8px;"><strong>Applied On:</strong> ${appliedDate}</p>
+            <p style="margin: 0 0 8px;"><strong>AI Fit Score:</strong> ${matchScore}</p>
+            <p style="margin: 0;"><strong>Recruiter Feedback:</strong> You passed our initial screening based on your strong alignment with our core requirements.</p>
+          </div>
+
+          <p>Our team will be reaching out soon with the next steps regarding the interview process.</p>
+          <p>Best regards,<br/><strong>The Hiring Team</strong></p>
         </div>
       `;
       break;
     case 'interview':
       const interviewDateStr = applicationData?.interviewDate ? new Date(applicationData.interviewDate).toLocaleString() : 'TBD';
-      const interviewLinkStr = applicationData?.interviewLink ? `<a href="${applicationData.interviewLink}">${applicationData.interviewLink}</a>` : 'Will be provided shortly';
+      const interviewLinkStr = applicationData?.interviewLink ? `<a href="${applicationData.interviewLink}" style="color: #003fb1; font-weight: bold;">Join Meeting</a>` : 'Will be provided shortly';
       
-      subject = `Interview Invitation: ${roleTitle}`;
+      subject = `[HireFlow AI] Interview Invitation: ${roleTitle}`;
       html = `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #22d3ee;">Interview Invitation</h2>
-          <p>Hi ${candidateName},</p>
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #003fb1; margin-top: 0;">Interview Invitation</h2>
+          <p>Hi <strong>${candidateName}</strong>,</p>
           <p>We are excited to invite you to an interview for the <strong>${roleTitle}</strong> position.</p>
-          <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #22d3ee; margin: 20px 0;">
-            <p style="margin: 0 0 10px 0;"><strong>Date & Time:</strong> ${interviewDateStr}</p>
-            <p style="margin: 0;"><strong>Meeting Link / Location:</strong> ${interviewLinkStr}</p>
+          
+          <div style="background: #eff6ff; padding: 20px; border-radius: 8px; border-left: 4px solid #003fb1; margin: 20px 0;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; color: #1e293b;">Interview Details</h3>
+            <p style="margin: 0 0 8px;"><strong>Date & Time:</strong> ${interviewDateStr}</p>
+            <p style="margin: 0 0 8px;"><strong>Location / Link:</strong> ${interviewLinkStr}</p>
           </div>
+          
+          <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin: 20px 0; border: 1px solid #e8eaed;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; color: #64748b; text-transform: uppercase;">Why We Selected You</h3>
+            <p style="margin: 0 0 8px;"><strong>AI Profile Match:</strong> ${matchScore}</p>
+            <p style="margin: 0;"><strong>Preliminary Feedback:</strong> Your resume and skills strongly aligned with our expectations for this role. We would like to discuss your experience further.</p>
+          </div>
+
           <p>Please prepare any questions you might have for our team.</p>
-          <p>We look forward to speaking with you!</p>
-          <p>Best regards,<br/>The Hiring Team</p>
+          <p>Best regards,<br/><strong>The Hiring Team</strong></p>
+        </div>
+      `;
+      break;
+    case 'offered':
+      subject = `[HireFlow AI] Offer Extended: ${roleTitle}`;
+      html = `
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #10b981; margin-top: 0;">Congratulations! Offer Extended</h2>
+          <p>Dear <strong>${candidateName}</strong>,</p>
+          <p>After careful consideration and a successful interview, we are delighted to formally offer you the position of <strong>${roleTitle}</strong>!</p>
+          
+          <div style="background: #f0fdf4; padding: 16px; border-radius: 6px; margin: 20px 0; border: 1px solid #bbf7d0;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; color: #166534; text-transform: uppercase;">Closing Assessment</h3>
+            <p style="margin: 0 0 8px;"><strong>AI Fit Score:</strong> ${matchScore}</p>
+            <p style="margin: 0;"><strong>Interview Feedback:</strong> ${latestNote}</p>
+          </div>
+
+          <p>We were highly impressed with your skills and cultural fit. HR will contact you shortly with the official offer letter and compensation details.</p>
+          <p>We can't wait to welcome you to the team!</p>
+          <p>Sincerely,<br/><strong>The Hiring Team</strong></p>
         </div>
       `;
       break;
     case 'rejected':
-      subject = `Update on your application for ${roleTitle}`;
+      subject = `[HireFlow AI] Application Update: ${roleTitle}`;
       html = `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2>Update on Your Application</h2>
-          <p>Dear ${candidateName},</p>
+        <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #475569; margin-top: 0;">Update on Your Application</h2>
+          <p>Dear <strong>${candidateName}</strong>,</p>
           <p>Thank you for taking the time to apply for the <strong>${roleTitle}</strong> position.</p>
-          <p>While we were impressed with your qualifications, we have decided to move forward with other candidates who more closely align with our current needs for this particular role.</p>
-          <p>We will keep your resume on file for future opportunities.</p>
-          <p>We wish you the best of luck in your job search.</p>
-          <p>Sincerely,<br/>The Hiring Team</p>
+          <p>While we were impressed with your qualifications, we have decided to move forward with other candidates whose backgrounds more closely align with our current needs.</p>
+          
+          <div style="background: #f8fafc; padding: 16px; border-radius: 6px; margin: 20px 0; border: 1px solid #e8eaed;">
+            <h3 style="margin: 0 0 12px; font-size: 14px; color: #64748b; text-transform: uppercase;">Application Transparency Report</h3>
+            <p style="margin: 0 0 8px;"><strong>Role Analyzed:</strong> ${roleTitle}</p>
+            <p style="margin: 0 0 8px;"><strong>AI Profile Match:</strong> ${matchScore}</p>
+            <p style="margin: 0;"><strong>Final Feedback:</strong> ${latestNote}</p>
+          </div>
+
+          <p>We are a transparent organization and believe in sharing constructive feedback. We will keep your profile on file should a better-matching role open up in the future.</p>
+          <p>We wish you the absolute best in your career search.</p>
+          <p>Sincerely,<br/><strong>The Hiring Team</strong></p>
         </div>
       `;
       break;

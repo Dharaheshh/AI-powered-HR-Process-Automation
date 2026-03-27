@@ -45,8 +45,14 @@ export const getAllApplicationsAPI = () => API.get('/applications/all');
 export const getApplicationAPI = (id) => API.get(`/applications/${id}`);
 
 export const updateApplicationStatusAPI = (id, status, extraData = {}) => API.patch(`/applications/${id}/status`, { status, ...extraData });
+export const addRecruiterNoteAPI = (id, text) => API.post(`/applications/${id}/notes`, { text });
 
 // Analytics
 export const getHRSummaryAPI = () => API.get('/analytics/hr-summary');
+export const getReportDataAPI = () => API.get('/analytics/report-data');
+
+// Settings
+export const getHrSettingsAPI = () => API.get('/settings/availability');
+export const updateHrSettingsAPI = (data) => API.put('/settings/availability', data);
 
 export default API;

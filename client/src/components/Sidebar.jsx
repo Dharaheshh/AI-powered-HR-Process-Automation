@@ -16,7 +16,7 @@ const Sidebar = () => {
     { path: '/interviews', label: 'Interviews', icon: 'event_note' },
     { path: '/calendar', label: 'Calendar', icon: 'calendar_month' },
     { path: '/sla-alerts', label: 'SLA Alerts', icon: 'notifications_active' },
-    { path: '/reports', label: 'Reports', icon: 'description' },
+    { path: '/hr-analytics', label: 'Reports', icon: 'description' },
     { path: '/settings', label: 'Settings', icon: 'settings' },
   ];
 

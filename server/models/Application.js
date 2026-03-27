@@ -18,7 +18,7 @@ const applicationSchema = new mongoose.Schema(
       required: true,
     },
     resumeFile: {
-      type: String, // Store URL/path to the uploaded resume
+      type: String,
     },
     status: {
       type: String,
@@ -39,6 +39,13 @@ const applicationSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    recruiterNotes: [
+      {
+        text: { type: String, required: true },
+        addedBy: { type: String },
+        addedAt: { type: Date, default: Date.now }
+      }
+    ],
     timeline: [
       {
         status: { type: String },

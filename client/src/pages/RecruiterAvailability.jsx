@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getAllApplicationsAPI } from '../services/api';
+import { getAllApplicationsAPI, getHrSettingsAPI, updateHrSettingsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
+import toast from 'react-hot-toast';
 
 const DAYS_OF_WEEK = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
 const HOURS = ['09:00AM','10:00AM','11:00AM','12:00PM','01:00PM','02:00PM','03:00PM','04:00PM','05:00PM'];
@@ -10,6 +11,8 @@ const RecruiterAvailability = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('week');
+  const [loading, setLoading] = useState(true);
+  
   const today = new Date();
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - today.getDay() + 1);
@@ -20,25 +23,90 @@ const RecruiterAvailability = () => {
     return d;
   });
 
-  const interviewSlots = [
-    { name: 'Standard Screening', duration: '30 Minutes', dots: '•••' },
-    { name: 'Technical Review', duration: '45 Minutes', dots: '••' },
-    { name: 'Culture Fit', duration: '45 Minutes', dots: '•' },
-  ];
-
   const [applications, setApplications] = useState([]);
+  
+  // Real HR Settings State
+  const [workingHours, setWorkingHours] = useState([]);
+  const [interviewSlots, setInterviewSlots] = useState([]);
+  const [timezone, setTimezone] = useState('GMT+5.5');
+
+  // Edit State
+  const [editingHours, setEditingHours] = useState(false);
+  const [tempHours, setTempHours] = useState([]);
 
   useEffect(() => {
-    const fetchApps = async () => {
+    const fetchData = async () => {
       try {
-        const res = await getAllApplicationsAPI();
-        setApplications(res.data.applications);
+        const [appRes, settingsRes] = await Promise.all([
+          getAllApplicationsAPI(),
+          getHrSettingsAPI()
+        ]);
+        setApplications(appRes.data.applications);
+        
+        const setts = settingsRes.data.settings;
+        if (setts) {
+          setWorkingHours(setts.workingHours || []);
+          setInterviewSlots(setts.interviewSlots || []);
+          setTimezone(setts.timezone || 'GMT+5.5');
+        }
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load data', err);
+        toast.error('Failed to load recruiter settings');
+      } finally {
+        setLoading(false);
       }
     };
-    fetchApps();
+    fetchData();
   }, []);
+
+  // Handlers for Working Hours
+  const handleEditHoursBtn = () => {
+    setTempHours(JSON.parse(JSON.stringify(workingHours)));
+    setEditingHours(true);
+  };
+  const handleSaveHours = async () => {
+    try {
+      await updateHrSettingsAPI({ workingHours: tempHours });
+      setWorkingHours(tempHours);
+      setEditingHours(false);
+      toast.success('Working hours saved successfully');
+    } catch (err) {
+      toast.error('Failed to save working hours');
+    }
+  };
+  const handleHourChange = (index, field, value) => {
+    const updated = [...tempHours];
+    updated[index][field] = value;
+    setTempHours(updated);
+  };
+
+  // Handlers for Slots
+  const handleAddSlot = async () => {
+    const name = prompt('Enter interview type (e.g., Technical Review):');
+    if (!name) return;
+    const duration = prompt('Enter duration in minutes (e.g., 45):');
+    if (!duration) return;
+    
+    const newSlots = [...interviewSlots, { name, duration: `${duration} Minutes` }];
+    try {
+      await updateHrSettingsAPI({ interviewSlots: newSlots });
+      setInterviewSlots(newSlots);
+      toast.success('Interview slot added');
+    } catch (err) {
+      toast.error('Failed to add slot');
+    }
+  };
+  const handleDeleteSlot = async (index) => {
+    if (!window.confirm('Remove this interview slot?')) return;
+    const newSlots = interviewSlots.filter((_, i) => i !== index);
+    try {
+      await updateHrSettingsAPI({ interviewSlots: newSlots });
+      setInterviewSlots(newSlots);
+      toast.success('Slot removed');
+    } catch (err) {
+      toast.error('Failed to remove slot');
+    }
+  };
 
   const startOfWeek = new Date(weekDays[0]);
   startOfWeek.setHours(0, 0, 0, 0);
@@ -66,6 +134,8 @@ const RecruiterAvailability = () => {
     { day: 2, startH: 14, endH: 15.5, title: 'Focus (Blocked)', color: '#f1f5f9', textColor: '#475569' },
     ...realEvents
   ];
+
+  if (loading) return <DashboardLayout><div className="placeholder-section">Loading your Schedule...</div></DashboardLayout>;
 
   return (
     <DashboardLayout>
@@ -109,31 +179,63 @@ const RecruiterAvailability = () => {
           <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e8eaed', padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: 0, fontFamily: 'Manrope' }}>Working Hours</h3>
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#94a3b8', cursor: 'pointer' }}>edit</span>
+              {!editingHours ? (
+                <span className="material-symbols-outlined" onClick={handleEditHoursBtn} style={{ fontSize: '16px', color: '#94a3b8', cursor: 'pointer' }}>edit</span>
+              ) : (
+                <span className="material-symbols-outlined" onClick={handleSaveHours} style={{ fontSize: '16px', color: '#10b981', cursor: 'pointer' }}>check_circle</span>
+              )}
             </div>
-            {[
-              { label: 'Monday – Friday', time: '09:00 - 18:00' },
-              { label: 'Saturday', time: '10:00 - 13:00' },
-            ].map((wh, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-                <span style={{ fontSize: '13px', color: '#1e293b' }}>{wh.label}</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>{wh.time}</span>
+            
+            {(editingHours ? tempHours : workingHours).map((wh, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: '13px', color: '#1e293b', width: '60px' }}>{wh.day.slice(0,3)}</span>
+                
+                {editingHours ? (
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input type="checkbox" checked={wh.isOff} onChange={e => handleHourChange(i, 'isOff', e.target.checked)} />
+                    {!wh.isOff ? (
+                      <>
+                        <input type="time" value={wh.start} onChange={e => handleHourChange(i, 'start', e.target.value)} style={{ padding: '2px 4px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                        <span style={{ fontSize: '10px' }}>to</span>
+                        <input type="time" value={wh.end} onChange={e => handleHourChange(i, 'end', e.target.value)} style={{ padding: '2px 4px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '4px' }} />
+                      </>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#ef4444', fontStyle: 'italic', marginLeft: '10px' }}>Off</span>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: wh.isOff ? '#ef4444' : '#475569' }}>
+                    {wh.isOff ? 'Off' : `${wh.start} - ${wh.end}`}
+                  </span>
+                )}
               </div>
             ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-              <span style={{ fontSize: '13px', color: '#1e293b' }}>Sunday</span>
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#ef4444' }}>Off</span>
-            </div>
-            <button style={{
-              width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '8px',
-              background: '#fff', fontSize: '12px', fontWeight: 600, color: '#475569',
-              cursor: 'pointer', marginTop: '12px',
-            }}>Update Timezone (GMT+5.5)</button>
+            
+            <button 
+              onClick={async () => {
+                const tz = prompt('Update Timezone', timezone);
+                if (tz) {
+                  await updateHrSettingsAPI({ timezone: tz });
+                  setTimezone(tz);
+                  toast.success('Timezone updated');
+                }
+              }}
+              style={{
+                width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '8px',
+                background: '#fff', fontSize: '12px', fontWeight: 600, color: '#475569',
+                cursor: 'pointer', marginTop: '12px', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+              onMouseLeave={(e) => e.target.style.background = '#fff'}
+            >
+              Update Timezone ({timezone})
+            </button>
           </div>
 
           {/* Interview Slots */}
           <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e8eaed', padding: '20px' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b', margin: '0 0 14px', fontFamily: 'Manrope' }}>Interview Slots</h3>
+            {interviewSlots.length === 0 && <p style={{ fontSize: '12px', color: '#94a3b8' }}>No slots configured.</p>}
             {interviewSlots.map((slot, i) => (
               <div key={i} style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -144,11 +246,13 @@ const RecruiterAvailability = () => {
                   <p style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b', margin: 0 }}>{slot.name}</p>
                   <p style={{ fontSize: '11px', color: '#94a3b8', margin: '2px 0 0' }}>{slot.duration}</p>
                 </div>
-                <span style={{ color: '#cbd5e1', fontSize: '16px', cursor: 'pointer' }}>⋯</span>
+                <button onClick={() => handleDeleteSlot(i)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '16px', cursor: 'pointer', padding: 0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+                </button>
               </div>
             ))}
-            <button style={{
-              display: 'flex', alignItems: 'center', gap: '6px', padding: '10px', border: 'none',
+            <button onClick={handleAddSlot} style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 0 0', border: 'none',
               background: 'transparent', cursor: 'pointer', fontSize: '13px', fontWeight: 600,
               color: '#003fb1', fontFamily: 'Inter',
             }}>

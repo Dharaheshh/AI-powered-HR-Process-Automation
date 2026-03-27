@@ -30,11 +30,11 @@ const Candidates = () => {
   };
 
   const statusColors = {
-    applied: { bg: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)' },
-    shortlisted: { bg: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
-    interview: { bg: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', border: '1px solid rgba(6, 182, 212, 0.2)' },
-    rejected: { bg: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' },
-    offered: { bg: 'linear-gradient(135deg, #6366f1 0%, #06b6d4 100%)', color: 'white', border: 'none' }
+    applied: { background: 'rgba(99, 102, 241, 0.1)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.2)' },
+    shortlisted: { background: 'rgba(34, 197, 94, 0.1)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.2)' },
+    interview: { background: 'rgba(6, 182, 212, 0.1)', color: '#22d3ee', border: '1px solid rgba(6, 182, 212, 0.2)' },
+    rejected: { background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.2)' },
+    offered: { background: 'var(--gradient-primary)', color: 'white', border: 'none' }
   };
 
   const filteredAndSortedCandidates = useMemo(() => {

@@ -183,6 +183,9 @@ const updateApplicationStatus = async (req, res) => {
       if (interviewLink) application.interviewLink = interviewLink;
       note = `Scheduled for ${new Date(interviewDate).toLocaleString()}`;
     }
+    if (status === 'offered') {
+      note = 'Candidate has been accepted and offered the position.';
+    }
     
     application.timeline.push({
       status,
@@ -198,6 +201,35 @@ const updateApplicationStatus = async (req, res) => {
     res.status(200).json({ success: true, application });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Add recruiter note to application
+// @route   POST /api/applications/:id/notes
+// @access  HR only
+const addRecruiterNote = async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Note text is required' });
+    }
+
+    const application = await Application.findById(req.params.id);
+    if (!application) {
+      return res.status(404).json({ success: false, message: 'Application not found' });
+    }
+
+    application.recruiterNotes.push({
+      text: text.trim(),
+      addedBy: req.user.name || 'HR',
+      addedAt: new Date()
+    });
+
+    await application.save();
+    res.status(200).json({ success: true, notes: application.recruiterNotes });
+  } catch (error) {
+    console.error('Error adding note:', error);
+    res.status(500).json({ success: false, message: 'Failed to save note' });
   }
 };
 
@@ -238,4 +270,4 @@ const getApplicationById = async (req, res) => {
   }
 };
 
-module.exports = { applyToJob, getApplicants, getMyApplications, updateApplicationStatus, getAllApplications, getApplicationById };
+module.exports = { applyToJob, getApplicants, getMyApplications, updateApplicationStatus, getAllApplications, getApplicationById, addRecruiterNote };
