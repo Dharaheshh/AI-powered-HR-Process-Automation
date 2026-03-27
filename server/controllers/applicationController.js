@@ -6,6 +6,58 @@ const fs = require('fs');
 const path = require('path');
 const { sendStatusEmail } = require('../utils/emailService');
 
+const RoleRecommendation = require('../models/RoleRecommendation');
+
+// Helper for Cross-Role Matching (Role Recommendation Engine)
+const generateRoleRecommendations = async (candidateId, applicationId, appliedRoleId, appliedMatchScore, filePath) => {
+  try {
+    // 1. Fetch all other open job roles
+    const openJobs = await JobOpening.find({ status: 'open', role: { $ne: appliedRoleId } }).populate('role');
+    if (openJobs.length === 0) return;
+
+    let bestMatch = null;
+    let highestScore = appliedMatchScore;
+
+    // 2. Score against all other roles sequentially to not overload ML server
+    for (const job of openJobs) {
+      if (!job.role) continue;
+      const skillsRequired = job.customSkills?.length > 0 ? job.customSkills : job.role?.defaultSkills || [];
+      const formData = new FormData();
+      formData.append('resume', fs.createReadStream(filePath));
+      formData.append('skills', JSON.stringify(skillsRequired));
+
+      const mlResponse = await axios.post('http://localhost:8000/score', formData, {
+        headers: { ...formData.getHeaders() }
+      });
+
+      if (mlResponse.data && mlResponse.data.success) {
+        const matchScore = mlResponse.data.matchScore;
+        if (matchScore > highestScore) {
+          highestScore = matchScore;
+          bestMatch = job;
+        }
+      }
+    }
+
+    // 3. If we found a significantly better match (e.g., +15% better), create recommendation
+    if (bestMatch && (highestScore - appliedMatchScore >= 15)) {
+      await RoleRecommendation.create({
+        candidate: candidateId,
+        application: applicationId,
+        appliedRole: appliedRoleId,
+        recommendedJobOpening: bestMatch._id,
+        appliedMatchScore: appliedMatchScore,
+        recommendedMatchScore: highestScore,
+        reason: `System detected a significantly higher match score (${highestScore}%) for ${bestMatch.role.name} based on the candidate's core skills and experience, compared to the initially applied role (${appliedMatchScore}%).`,
+        status: 'pending'
+      });
+      console.log(`Created Role Recommendation for candidate ${candidateId} -> ${bestMatch.role.name}`);
+    }
+  } catch (err) {
+    console.error('Error generating role recommendations:', err.message);
+  }
+};
+
 // @desc    Apply to a job opening
 // @route   POST /api/applications/:jobOpeningId
 // @access  Candidate only
@@ -42,8 +94,10 @@ const applyToJob = async (req, res) => {
     };
 
     // ML Processing: Send to Python Microservice for Match Score
+    let uploadedFilePath = null;
     if (req.file) {
       applicationData.resumeFile = `/uploads/resumes/${req.file.filename}`;
+      uploadedFilePath = path.join(__dirname, '..', 'uploads', 'resumes', req.file.filename);
       
       try {
         // Collect requirements
@@ -53,9 +107,8 @@ const applyToJob = async (req, res) => {
           
         // Prepare FormData for Python API
         const formData = new FormData();
-        const filePath = path.join(__dirname, '..', 'uploads', 'resumes', req.file.filename);
         
-        formData.append('resume', fs.createReadStream(filePath));
+        formData.append('resume', fs.createReadStream(uploadedFilePath));
         formData.append('skills', JSON.stringify(skillsRequired));
 
         // Call FastAPI Microservice (Assumed running on port 8000)
@@ -80,6 +133,18 @@ const applyToJob = async (req, res) => {
 
     // Increment applicant count
     await JobOpening.findByIdAndUpdate(jobOpeningId, { $inc: { applicantCount: 1 } });
+
+    // --- NEW: Trigger Background Role Recommendation Engine ---
+    if (uploadedFilePath && application.matchScore !== undefined) {
+      // Fire and forget
+      generateRoleRecommendations(
+        req.user._id, 
+        application._id, 
+        jobOpening.role._id, 
+        application.matchScore, 
+        uploadedFilePath
+      ).catch(err => console.error('Background Recommendation Error:', err));
+    }
 
     res.status(201).json({ success: true, application });
   } catch (error) {

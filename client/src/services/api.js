@@ -55,4 +55,9 @@ export const getReportDataAPI = () => API.get('/analytics/report-data');
 export const getHrSettingsAPI = () => API.get('/settings/availability');
 export const updateHrSettingsAPI = (data) => API.put('/settings/availability', data);
 
+// Recommendations (Cross-Role Matching)
+export const getRecommendationsAPI = () => API.get('/recommendations');
+export const acceptRecommendationAPI = (id) => API.put(`/recommendations/${id}/accept`);
+export const ignoreRecommendationAPI = (id) => API.put(`/recommendations/${id}/ignore`);
+
 export default API;

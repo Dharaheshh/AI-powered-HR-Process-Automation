@@ -26,6 +26,7 @@ app.use('/api/job-openings', require('./routes/jobOpenings'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/recommendations', require('./routes/recommendations'));
 
 // Health check
 app.get('/', (req, res) => {

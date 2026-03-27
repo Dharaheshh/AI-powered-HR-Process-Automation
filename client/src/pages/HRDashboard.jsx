@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
-import { getHRSummaryAPI, getMyJobOpeningsAPI, getAllApplicationsAPI } from '../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { getHRSummaryAPI, getMyJobOpeningsAPI, getAllApplicationsAPI, getRecommendationsAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -34,6 +34,7 @@ const ChartCard = ({ title, children, span }) => (
 
 const HRDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalApplications: 0, totalActiveJobs: 0, totalHires: 0,
     funnelData: [], popularRolesData: [], applicationsOverTime: [], slaData: [],
@@ -42,19 +43,22 @@ const HRDashboard = () => {
   });
   const [openings, setOpenings] = useState([]);
   const [allApps, setAllApps] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     try {
-      const [analyticsRes, openingsRes, appsRes] = await Promise.all([
+      const [analyticsRes, openingsRes, appsRes, recsRes] = await Promise.all([
         getHRSummaryAPI().catch(() => ({ data: { data: stats } })),
         getMyJobOpeningsAPI().catch(() => ({ data: { jobOpenings: [] } })),
-        getAllApplicationsAPI().catch(() => ({ data: { applications: [] } }))
+        getAllApplicationsAPI().catch(() => ({ data: { applications: [] } })),
+        getRecommendationsAPI().catch(() => ({ data: { recommendations: [] } }))
       ]);
       setStats(analyticsRes.data.data);
       setOpenings(openingsRes.data.jobOpenings || []);
       setAllApps(appsRes.data.applications || []);
+      setRecommendations(recsRes.data.recommendations || []);
     } catch (e) { console.error('Dashboard fetch failed', e); }
   };
 
@@ -84,6 +88,52 @@ const HRDashboard = () => {
           <p style={{ fontSize: '14px', color: '#64748b', marginTop: '4px' }}>Here's what's happening with your hiring pipeline today.</p>
         </div>
       </div>
+
+      {/* Recommendations Alert Panel */}
+      {recommendations.length > 0 && (
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '20px 24px', marginBottom: '28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span className="material-symbols-outlined" style={{ color: '#2563eb', fontSize: '28px' }}>tips_and_updates</span>
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#1e3a8a', margin: 0 }}>Smart Role Recommendations</h3>
+              <p style={{ fontSize: '13px', color: '#1e40af', margin: '4px 0 0' }}>AI has detected {recommendations.length} candidate{recommendations.length !== 1 ? 's' : ''} better suited for a different role pipeline.</p>
+            </div>
+          </div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+            {recommendations.map(rec => (
+              <div 
+                key={rec._id} 
+                onClick={() => navigate('/candidate', { state: { candidateId: rec.application._id } })}
+                style={{ background: '#fff', borderRadius: '8px', padding: '16px', border: '1px solid #bfdbfe', cursor: 'pointer', transition: 'box-shadow 0.2s', boxShadow: '0 2px 4px rgba(37,99,235,0.05)' }}
+                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.1)'}
+                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 4px rgba(37,99,235,0.05)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  {rec.candidate?.profileImage ? (
+                    <img src={rec.candidate.profileImage} alt="profile" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#bfdbfe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                      {rec.candidate?.name?.charAt(0)}
+                    </div>
+                  )}
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b', margin: 0 }}>{rec.candidate?.name}</h4>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Applied: {rec.appliedRole?.name} ({rec.appliedMatchScore}%)</p>
+                  </div>
+                </div>
+                
+                <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>🔥 Recommended Fit</p>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#10b981', margin: 0 }}>
+                    {rec.recommendedJobOpening?.role?.name} – {rec.recommendedMatchScore}% Match
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '28px' }}>

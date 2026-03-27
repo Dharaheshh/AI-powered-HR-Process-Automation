@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getApplicationAPI, updateApplicationStatusAPI, addRecruiterNoteAPI } from '../services/api';
+import { getApplicationAPI, updateApplicationStatusAPI, addRecruiterNoteAPI, getRecommendationsAPI, acceptRecommendationAPI, ignoreRecommendationAPI } from '../services/api';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 import toast from 'react-hot-toast';
 
@@ -11,12 +11,19 @@ const CandidateFollowUp = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [noteText, setNoteText] = useState('');
+  const [recommendation, setRecommendation] = useState(null);
 
   useEffect(() => {
     const fetchApp = async () => {
       try {
-        const res = await getApplicationAPI(id);
-        setAppData(res.data.application);
+        const [appRes, recsRes] = await Promise.all([
+          getApplicationAPI(id),
+          getRecommendationsAPI().catch(() => ({ data: { recommendations: [] } }))
+        ]);
+        setAppData(appRes.data.application);
+        const recs = recsRes.data.recommendations || [];
+        const appRec = recs.find(r => (r.application._id || r.application) === id);
+        setRecommendation(appRec || null);
       } catch (error) {
         toast.error('Failed to load candidate application');
       } finally {
@@ -72,6 +79,32 @@ const CandidateFollowUp = () => {
       setAppData(res.data.application);
     } catch (error) {
       toast.error('Failed to save note');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAcceptRec = async () => {
+    try {
+      setProcessing(true);
+      await acceptRecommendationAPI(recommendation._id);
+      toast.success('Candidate moved to new role successfully!');
+      navigate('/dashboard'); 
+    } catch (err) {
+      toast.error('Failed to move candidate');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleIgnoreRec = async () => {
+    try {
+      setProcessing(true);
+      await ignoreRecommendationAPI(recommendation._id);
+      toast.success('Recommendation ignored');
+      setRecommendation(null);
+    } catch (err) {
+      toast.error('Failed to ignore recommendation');
     } finally {
       setProcessing(false);
     }
@@ -143,6 +176,42 @@ const CandidateFollowUp = () => {
         }}>
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span> Back to List
         </button>
+
+        {/* ROLE RECOMMENDATION BANNER */}
+        {recommendation && (
+          <div style={{
+            background: 'linear-gradient(to right, #eff6ff, #dbeafe)',
+            border: '1px solid #bfdbfe', borderRadius: '16px', padding: '24px',
+            marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px',
+            boxShadow: '0 4px 12px rgba(37,99,235,0.1)'
+          }}>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flex: '1 1 min-content' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '32px', color: '#2563eb', background: '#fff', padding: '12px', borderRadius: '50%', boxShadow: '0 2px 4px rgba(37,99,235,0.15)' }}>
+                auto_awesome
+              </span>
+              <div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 800, color: '#1e3a8a', fontFamily: 'Manrope, sans-serif' }}>
+                  Smart Role Match: {recommendation.recommendedJobOpening?.role?.name} ({recommendation.recommendedMatchScore}%)
+                </h3>
+                <p style={{ margin: 0, fontSize: '14px', color: '#1e40af', lineHeight: '1.5' }}>
+                  {recommendation.reason}
+                </p>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button disabled={processing} onClick={handleIgnoreRec} style={{
+                background: '#fff', border: '1px solid #bfdbfe', color: '#3b82f6',
+                padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
+              }}>Ignore</button>
+              <button disabled={processing} onClick={handleAcceptRec} style={{
+                background: '#2563eb', border: '1px solid #1d4ed8', color: '#fff',
+                padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+              }}>Move Candidate to Pipeline</button>
+            </div>
+          </div>
+        )}
 
         {/* ====== HEADER CARD ====== */}
         <div style={{
