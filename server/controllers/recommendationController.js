@@ -2,7 +2,29 @@ const RoleRecommendation = require('../models/RoleRecommendation');
 const Application = require('../models/Application');
 const JobOpening = require('../models/JobOpening');
 
-// @desc    Get all pending role recommendations
+// @desc    Get candidate's own role recommendations
+// @route   GET /api/recommendations/my
+// @access  Candidate
+const getMyRecommendations = async (req, res) => {
+  try {
+    const recommendations = await RoleRecommendation.find({ 
+      candidate: req.user._id,
+      status: 'pending' 
+    })
+      .populate('appliedRole', 'name')
+      .populate({
+        path: 'recommendedJobOpening',
+        populate: { path: 'role', select: 'name department' }
+      })
+      .sort({ createdAt: -1 });
+      
+    res.status(200).json({ success: true, count: recommendations.length, recommendations });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get all pending role recommendations (HR focus)
 // @route   GET /api/recommendations
 // @access  HR only
 const getRecommendations = async (req, res) => {
@@ -100,6 +122,7 @@ const ignoreRecommendation = async (req, res) => {
 };
 
 module.exports = {
+  getMyRecommendations,
   getRecommendations,
   acceptRecommendation,
   ignoreRecommendation

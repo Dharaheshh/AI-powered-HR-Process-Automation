@@ -57,7 +57,13 @@ export const updateHrSettingsAPI = (data) => API.put('/settings/availability', d
 
 // Recommendations (Cross-Role Matching)
 export const getRecommendationsAPI = () => API.get('/recommendations');
+export const getMyRecommendationsAPI = () => API.get('/recommendations/my');
 export const acceptRecommendationAPI = (id) => API.put(`/recommendations/${id}/accept`);
 export const ignoreRecommendationAPI = (id) => API.put(`/recommendations/${id}/ignore`);
+
+// AI 
+export const analyzeResumeAPI = (data) => API.post('/ai/analyze-resume', data, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 export default API;

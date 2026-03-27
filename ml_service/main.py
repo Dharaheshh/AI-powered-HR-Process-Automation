@@ -86,6 +86,26 @@ async def score_resume(
         logging.error(f"Scoring error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/extract-text")
+async def extract_text(resume: UploadFile = File(...)):
+    """Extract raw text from a PDF resume."""
+    try:
+        import os
+        temp_path = f"temp_{resume.filename}"
+        with open(temp_path, "wb") as f:
+            content = await resume.read()
+            f.write(content)
+        
+        text = extract_text_from_pdf(temp_path)
+        
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        return {"success": True, "text": text}
+    except Exception as e:
+        logging.error(f"Text extraction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
