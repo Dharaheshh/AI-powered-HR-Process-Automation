@@ -11,6 +11,7 @@ const RoleDetail = () => {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [justApplied, setJustApplied] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
 
   useEffect(() => { fetchOpeningAndStatus(); }, [id]);
@@ -39,6 +40,7 @@ const RoleDetail = () => {
       await applyToJobAPI(id, formData);
       toast.success('Application submitted successfully!');
       setHasApplied(true);
+      setJustApplied(true);
     } catch (error) { toast.error(error.response?.data?.message || 'Failed to apply'); }
     finally { setApplying(false); }
   };
@@ -123,11 +125,20 @@ const RoleDetail = () => {
 
           {/* Apply Section */}
           <div>
-            {!hasApplied && opening.status !== 'closed' && (
+            {!hasApplied && opening.status !== 'closed' && !justApplied && (
               <DragDropUpload onFileSelect={setSelectedFile} selectedFile={selectedFile} />
             )}
 
-            {hasApplied ? (
+            {justApplied ? (
+              <div style={{ padding: '32px', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '12px', textAlign: 'center', boxShadow: '0 4px 12px rgba(16,185,129,0.1)' }}>
+                <div style={{ width: '56px', height: '56px', background: '#10b981', color: '#fff', borderRadius: '50%', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '32px' }}>check_circle</span>
+                </div>
+                <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#065f46', margin: '0 0 8px', fontFamily: 'Manrope, sans-serif' }}>Application Submitted!</h3>
+                <p style={{ fontSize: '14px', color: '#047857', margin: '0 0 24px' }}>We have received your resume. Our AI is reviewing your profile right now.</p>
+                <button onClick={() => navigate('/candidate/dashboard')} style={{ background: '#059669', color: '#fff', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '14px', transition: 'background 0.2s' }} onMouseEnter={(e) => e.target.style.background = '#047857'} onMouseLeave={(e) => e.target.style.background = '#059669'}>Go to My Dashboard</button>
+              </div>
+            ) : hasApplied ? (
               <div style={{ padding: '16px', background: '#ecfdf5', border: '1px solid #d1fae5', borderRadius: '10px', color: '#059669', textAlign: 'center', fontWeight: 600, fontSize: '14px' }}>
                 ✅ You have already applied to this position
               </div>

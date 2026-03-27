@@ -187,6 +187,12 @@ const getApplicants = async (req, res) => {
         slaBreached = true;
       }
 
+      // DEMO FRIENDLY FEATURE: Instantly breach SLA if matchScore is >= 90
+      if ((app.matchScore || 0) >= 90) {
+        slaBreached = true;
+        daysElapsed = Math.max(daysElapsed, limit ? limit + 1 : 1);
+      }
+
       return {
         ...app,
         daysInStatus: Math.max(0, daysElapsed),
@@ -303,10 +309,42 @@ const addRecruiterNote = async (req, res) => {
 // @access  HR only
 const getAllApplications = async (req, res) => {
   try {
-    const applications = await Application.find()
+    const rawApplications = await Application.find()
       .populate('jobOpening', 'title location jobType')
       .populate('candidate', 'name email profile')
-      .sort({ appliedAt: -1 });
+      .sort({ appliedAt: -1 })
+      .lean();
+    
+    const SLA_LIMITS = { applied: 3, shortlisted: 5, interview: 2 };
+    const now = Date.now();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    const applications = rawApplications.map(app => {
+      let daysElapsed = Math.floor((now - new Date(app.updatedAt || app.appliedAt || now).getTime()) / MS_PER_DAY);
+      let slaBreached = false;
+      let limit = SLA_LIMITS[app.status] || 5;
+
+      if (app.status === 'interview' && app.interviewDate) {
+        const interviewTime = new Date(app.interviewDate).getTime();
+        daysElapsed = Math.floor((now - interviewTime) / MS_PER_DAY);
+        if (daysElapsed > limit) slaBreached = true;
+      } else if (daysElapsed > limit) {
+        slaBreached = true;
+      }
+
+      // DEMO FRIENDLY FEATURE: Instantly breach SLA if matchScore is >= 90
+      if ((app.matchScore || 0) >= 90) {
+        slaBreached = true;
+        daysElapsed = Math.max(daysElapsed, limit + 1);
+      }
+
+      return {
+        ...app,
+        daysInStatus: Math.max(0, daysElapsed),
+        slaBreached,
+        slaLimit: limit || null
+      };
+    });
     
     res.status(200).json({ success: true, count: applications.length, applications });
   } catch (error) {

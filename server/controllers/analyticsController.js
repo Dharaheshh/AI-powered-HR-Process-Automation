@@ -52,14 +52,45 @@ const getHRSummary = async (req, res) => {
       applicationsOverTime.push({ date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), count });
     }
 
-    // SLA breakdown
-    const slaOnTime = applications.filter(a => !a.slaBreached && (a.daysInStatus || 0) < (a.slaLimit || 5) - 1).length;
-    const slaWarning = applications.filter(a => !a.slaBreached && (a.daysInStatus || 0) >= (a.slaLimit || 5) - 1).length;
-    const slaBreached = applications.filter(a => a.slaBreached).length;
+    const SLA_LIMITS = { applied: 3, shortlisted: 5, interview: 2 };
+    const nowTime = Date.now();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    let slaOnTime = 0, slaWarning = 0, slaBreachedCount = 0;
+
+    applications.forEach(app => {
+      let daysElapsed = Math.floor((nowTime - new Date(app.updatedAt || app.appliedAt || nowTime).getTime()) / MS_PER_DAY);
+      let isBreached = false;
+      let limit = SLA_LIMITS[app.status] || 5;
+
+      if (app.status === 'interview' && app.interviewDate) {
+        const interviewTime = new Date(app.interviewDate).getTime();
+        daysElapsed = Math.floor((nowTime - interviewTime) / MS_PER_DAY);
+        if (daysElapsed > limit) isBreached = true;
+      } else if (daysElapsed > limit) {
+        isBreached = true;
+      }
+
+      // DEMO FRIENDLY: Instantly breach if match score >= 90
+      if ((app.matchScore || 0) >= 90) {
+        isBreached = true;
+        daysElapsed = Math.max(daysElapsed, limit + 1);
+      }
+
+      // Assign to metrics
+      if (isBreached) {
+        slaBreachedCount++;
+      } else if (daysElapsed >= limit - 1) {
+        slaWarning++;
+      } else {
+        slaOnTime++;
+      }
+    });
+
     const slaData = [
       { name: 'On Time', value: slaOnTime },
       { name: 'Warning', value: slaWarning },
-      { name: 'Breached', value: slaBreached }
+      { name: 'Breached', value: slaBreachedCount }
     ];
 
     // Totals
@@ -76,7 +107,7 @@ const getHRSummary = async (req, res) => {
     const interviewRate = totalApplications ? Math.round((funnelCounts.interview / totalApplications) * 100) : 0;
     const rejectionRate = totalApplications ? Math.round((funnelCounts.rejected / totalApplications) * 100) : 0;
     const offerRate = totalApplications ? Math.round((funnelCounts.offered / totalApplications) * 100) : 0;
-    const slaCompliance = totalApplications ? Math.round(((totalApplications - slaBreached) / totalApplications) * 100) : 100;
+    const slaCompliance = totalApplications ? Math.round(((totalApplications - slaBreachedCount) / totalApplications) * 100) : 100;
 
     res.status(200).json({
       success: true,
@@ -84,7 +115,7 @@ const getHRSummary = async (req, res) => {
         totalApplications, totalActiveJobs, totalHires,
         funnelData, popularRolesData, applicationsOverTime, slaData,
         avgMatchScore, shortlistRate, interviewRate, rejectionRate, offerRate, slaCompliance,
-        slaBreachedCount: slaBreached
+        slaBreachedCount: slaBreachedCount
       }
     });
   } catch (error) {
@@ -107,14 +138,40 @@ const getReportData = async (req, res) => {
     const applications = await Application.find({ jobOpening: { $in: jobOpeningIds } })
       .populate('candidate', 'name email')
       .populate('jobOpening', 'title')
-      .select('status appliedAt matchScore slaBreached daysInStatus slaLimit candidate jobOpening timeline')
+      .select('status appliedAt matchScore slaBreached daysInStatus slaLimit candidate jobOpening timeline updatedAt interviewDate')
       .lean();
 
     const total = applications.length;
     const counts = { applied: 0, shortlisted: 0, interview: 0, offered: 0, rejected: 0 };
     applications.forEach(a => { if (counts[a.status] !== undefined) counts[a.status]++; });
 
-    const slaBreached = applications.filter(a => a.slaBreached).length;
+    const SLA_LIMITS = { applied: 3, shortlisted: 5, interview: 2 };
+    const nowTime = Date.now();
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+    let slaBreachedCount = 0;
+
+    applications.forEach(app => {
+      let daysElapsed = Math.floor((nowTime - new Date(app.updatedAt || app.appliedAt || nowTime).getTime()) / MS_PER_DAY);
+      let isBreached = false;
+      let limit = SLA_LIMITS[app.status] || 5;
+
+      if (app.status === 'interview' && app.interviewDate) {
+        const interviewTime = new Date(app.interviewDate).getTime();
+        daysElapsed = Math.floor((nowTime - interviewTime) / MS_PER_DAY);
+        if (daysElapsed > limit) isBreached = true;
+      } else if (daysElapsed > limit) {
+        isBreached = true;
+      }
+
+      if ((app.matchScore || 0) >= 90) {
+        isBreached = true;
+      }
+
+      if (isBreached) slaBreachedCount++;
+      app.slaBreached = isBreached;
+    });
+
+    const slaBreached = slaBreachedCount;
     const scoredApps = applications.filter(a => a.matchScore);
     const avgScore = scoredApps.length ? Math.round(scoredApps.reduce((s, a) => s + a.matchScore, 0) / scoredApps.length) : 0;
 
